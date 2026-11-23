@@ -1,0 +1,388 @@
+[
+  {
+    "name": "1. Early-week surplus (PRESERVE_WINDOWS)",
+    "description": "Weekly pace is healthy/ahead with surplus, but we are early in the week and session window has plenty of time left (> 45m). Preserve 5h windows for normal work.",
+    "now": "2026-11-24T00:00:00.000Z",
+    "pool": {
+      "poolId": "antigravity-gemini",
+      "providerInstanceId": "antigravity",
+      "driver": "antigravity",
+      "displayName": "Antigravity Gemini",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "source": "t3-cache-windows",
+      "checkedAt": "2026-11-24T00:00:00.000Z",
+      "sessionWindow": {
+        "id": "gemini-5h",
+        "label": "Gemini · 5-hour",
+        "kind": "session",
+        "usedPercent": 30.0,
+        "remainingPercent": 70.0,
+        "resetsAt": "2026-11-24T03:00:00.000Z",
+        "windowDurationMins": 300
+      },
+      "weeklyWindow": {
+        "id": "gemini-weekly",
+        "label": "Gemini · Weekly",
+        "kind": "weekly",
+        "usedPercent": 15.0,
+        "remainingPercent": 85.0,
+        "resetsAt": "2026-11-30T00:00:00.000Z",
+        "windowDurationMins": 10080
+      }
+    },
+    "expected": {
+      "harvestMode": "PRESERVE_WINDOWS",
+      "shieldLocked": false,
+      "weeklyBurnableSurplusPercent": 65.0,
+      "effectiveBurnablePercent": 50.0
+    }
+  },
+  {
+    "name": "2. Expiring 5h window < 45m with positive weekly pace delta (EXPIRING_5H_HARVEST)",
+    "description": "Weekly pace delta is positive (surplus) and 5h session expires in 25 minutes. Trigger opportunistic sparkle harvesting.",
+    "now": "2026-11-25T12:00:00.000Z",
+    "pool": {
+      "poolId": "antigravity-claude",
+      "providerInstanceId": "antigravity",
+      "driver": "antigravity",
+      "displayName": "Antigravity Claude",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "source": "t3-cache-windows",
+      "checkedAt": "2026-11-25T12:00:00.000Z",
+      "sessionWindow": {
+        "id": "3p-5h",
+        "label": "Claude & GPT (shared) · 5-hour",
+        "kind": "session",
+        "usedPercent": 40.0,
+        "remainingPercent": 60.0,
+        "resetsAt": "2026-11-25T12:25:00.000Z",
+        "windowDurationMins": 300
+      },
+      "weeklyWindow": {
+        "id": "3p-weekly",
+        "label": "Claude & GPT (shared) · Weekly",
+        "kind": "weekly",
+        "usedPercent": 30.0,
+        "remainingPercent": 70.0,
+        "resetsAt": "2026-11-28T12:00:00.000Z",
+        "windowDurationMins": 10080
+      }
+    },
+    "expected": {
+      "harvestMode": "EXPIRING_5H_HARVEST",
+      "shieldLocked": false,
+      "weeklyBurnableSurplusPercent": 50.0,
+      "effectiveBurnablePercent": 40.0
+    }
+  },
+  {
+    "name": "3. Expiring 5h window < 45m when behind weekly pace (PRESERVE_WINDOWS)",
+    "description": "5h session window expires in 20 minutes, but weekly quota has been burned heavily (behind pace / pace delta <= 0). Preserve windows to protect weekly reserve.",
+    "now": "2026-11-24T12:00:00.000Z",
+    "pool": {
+      "poolId": "antigravity-gemini",
+      "providerInstanceId": "antigravity",
+      "driver": "antigravity",
+      "displayName": "Antigravity Gemini",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "source": "t3-cache-windows",
+      "checkedAt": "2026-11-24T12:00:00.000Z",
+      "sessionWindow": {
+        "id": "gemini-5h",
+        "label": "Gemini · 5-hour",
+        "kind": "session",
+        "usedPercent": 45.0,
+        "remainingPercent": 55.0,
+        "resetsAt": "2026-11-24T12:20:00.000Z",
+        "windowDurationMins": 300
+      },
+      "weeklyWindow": {
+        "id": "gemini-weekly",
+        "label": "Gemini · Weekly",
+        "kind": "weekly",
+        "usedPercent": 75.0,
+        "remainingPercent": 25.0,
+        "resetsAt": "2026-11-28T12:00:00.000Z",
+        "windowDurationMins": 10080
+      }
+    },
+    "expected": {
+      "harvestMode": "PRESERVE_WINDOWS",
+      "shieldLocked": false,
+      "weeklyBurnableSurplusPercent": 5.0,
+      "effectiveBurnablePercent": 5.0
+    }
+  },
+  {
+    "name": "4. 24h left with 92% weekly remaining (FULL_THROTTLE_HARVEST)",
+    "description": "Only 24 hours left before weekly reset with 92% weekly remaining (72% surplus). Max possible drain capacity in 5 windows is 5 * 80% = 400%, but ratio of surplus to remaining capacity enters full-throttle harvest.",
+    "now": "2026-11-27T12:00:00.000Z",
+    "pool": {
+      "poolId": "codex",
+      "providerInstanceId": "codex",
+      "driver": "codex",
+      "displayName": "Codex",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "source": "codex-session-jsonl",
+      "checkedAt": "2026-11-27T12:00:00.000Z",
+      "sessionWindow": {
+        "id": "codex-session",
+        "label": "Primary (5h)",
+        "kind": "session",
+        "usedPercent": 10.0,
+        "remainingPercent": 90.0,
+        "resetsAt": "2026-11-27T15:00:00.000Z",
+        "windowDurationMins": 300
+      },
+      "weeklyWindow": {
+        "id": "codex-weekly",
+        "label": "Secondary (Weekly)",
+        "kind": "weekly",
+        "usedPercent": 8.0,
+        "remainingPercent": 92.0,
+        "resetsAt": "2026-11-28T12:00:00.000Z",
+        "windowDurationMins": 10080
+      }
+    },
+    "expected": {
+      "harvestMode": "FULL_THROTTLE_HARVEST",
+      "shieldLocked": false,
+      "weeklyBurnableSurplusPercent": 72.0,
+      "effectiveBurnablePercent": 70.0
+    }
+  },
+  {
+    "name": "5. 6h left with 85% weekly remaining (FULL_THROTTLE_HARVEST)",
+    "description": "Only 6 hours left until weekly reset (at most 2 x 5h windows, capacity <= 160%), while weekly surplus is 65%. Coupling ratio S_week / drainCapacity is very high.",
+    "now": "2026-11-28T06:00:00.000Z",
+    "pool": {
+      "poolId": "antigravity-gemini",
+      "providerInstanceId": "antigravity",
+      "driver": "antigravity",
+      "displayName": "Antigravity Gemini",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "source": "t3-cache-windows",
+      "checkedAt": "2026-11-28T06:00:00.000Z",
+      "sessionWindow": {
+        "id": "gemini-5h",
+        "label": "Gemini · 5-hour",
+        "kind": "session",
+        "usedPercent": 15.0,
+        "remainingPercent": 85.0,
+        "resetsAt": "2026-11-28T09:00:00.000Z",
+        "windowDurationMins": 300
+      },
+      "weeklyWindow": {
+        "id": "gemini-weekly",
+        "label": "Gemini · Weekly",
+        "kind": "weekly",
+        "usedPercent": 15.0,
+        "remainingPercent": 85.0,
+        "resetsAt": "2026-11-28T12:00:00.000Z",
+        "windowDurationMins": 10080
+      }
+    },
+    "expected": {
+      "harvestMode": "FULL_THROTTLE_HARVEST",
+      "shieldLocked": false,
+      "weeklyBurnableSurplusPercent": 65.0,
+      "effectiveBurnablePercent": 65.0
+    }
+  },
+  {
+    "name": "6. Exact 20.0% weekly remaining (LOCKED_SHIELD)",
+    "description": "Weekly quota hits exact 20.0% emergency reserve floor. Auto/delegated routing must be locked immediately.",
+    "now": "2026-11-26T10:00:00.000Z",
+    "pool": {
+      "poolId": "antigravity-claude",
+      "providerInstanceId": "antigravity",
+      "driver": "antigravity",
+      "displayName": "Antigravity Claude",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "source": "t3-cache-windows",
+      "checkedAt": "2026-11-26T10:00:00.000Z",
+      "sessionWindow": {
+        "id": "3p-5h",
+        "label": "Claude & GPT (shared) · 5-hour",
+        "kind": "session",
+        "usedPercent": 40.0,
+        "remainingPercent": 60.0,
+        "resetsAt": "2026-11-26T13:00:00.000Z",
+        "windowDurationMins": 300
+      },
+      "weeklyWindow": {
+        "id": "3p-weekly",
+        "label": "Claude & GPT (shared) · Weekly",
+        "kind": "weekly",
+        "usedPercent": 80.0,
+        "remainingPercent": 20.0,
+        "resetsAt": "2026-11-28T12:00:00.000Z",
+        "windowDurationMins": 10080
+      }
+    },
+    "expected": {
+      "harvestMode": "LOCKED_SHIELD",
+      "shieldLocked": true,
+      "weeklyBurnableSurplusPercent": 0.0,
+      "effectiveBurnablePercent": 0.0
+    }
+  },
+  {
+    "name": "7. 19.5% session remaining with 75% weekly remaining (LOCKED_SHIELD)",
+    "description": "Weekly has plenty of quota (75% remaining), but the 5h session window dropped below the 20% floor (19.5% remaining). Session reserve shield locks the pool.",
+    "now": "2026-11-25T08:00:00.000Z",
+    "pool": {
+      "poolId": "codex",
+      "providerInstanceId": "codex",
+      "driver": "codex",
+      "displayName": "Codex",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "source": "codex-session-jsonl",
+      "checkedAt": "2026-11-25T08:00:00.000Z",
+      "sessionWindow": {
+        "id": "codex-session",
+        "label": "Primary (5h)",
+        "kind": "session",
+        "usedPercent": 80.5,
+        "remainingPercent": 19.5,
+        "resetsAt": "2026-11-25T11:00:00.000Z",
+        "windowDurationMins": 300
+      },
+      "weeklyWindow": {
+        "id": "codex-weekly",
+        "label": "Secondary (Weekly)",
+        "kind": "weekly",
+        "usedPercent": 25.0,
+        "remainingPercent": 75.0,
+        "resetsAt": "2026-11-28T12:00:00.000Z",
+        "windowDurationMins": 10080
+      }
+    },
+    "expected": {
+      "harvestMode": "LOCKED_SHIELD",
+      "shieldLocked": true,
+      "weeklyBurnableSurplusPercent": 55.0,
+      "effectiveBurnablePercent": 0.0
+    }
+  },
+  {
+    "name": "8. 90 seconds before sessionWindow.resetsAt (LOCKED_SHIELD epoch safety guard)",
+    "description": "Session window resets in 90 seconds (< 120s epoch safety guard margin). Must halt to guarantee zero fresh cycle quota consumption.",
+    "now": "2026-11-23T18:00:00.000Z",
+    "pool": {
+      "poolId": "antigravity-gemini",
+      "providerInstanceId": "antigravity",
+      "driver": "antigravity",
+      "displayName": "Antigravity Gemini",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "source": "t3-cache-windows",
+      "checkedAt": "2026-11-23T18:00:00.000Z",
+      "sessionWindow": {
+        "id": "gemini-5h",
+        "label": "Gemini · 5-hour",
+        "kind": "session",
+        "usedPercent": 50.0,
+        "remainingPercent": 50.0,
+        "resetsAt": "2026-11-23T18:01:30.000Z",
+        "windowDurationMins": 300
+      },
+      "weeklyWindow": {
+        "id": "gemini-weekly",
+        "label": "Gemini · Weekly",
+        "kind": "weekly",
+        "usedPercent": 30.0,
+        "remainingPercent": 70.0,
+        "resetsAt": "2026-11-29T00:00:00.000Z",
+        "windowDurationMins": 10080
+      }
+    },
+    "expected": {
+      "harvestMode": "LOCKED_SHIELD",
+      "shieldLocked": true,
+      "weeklyBurnableSurplusPercent": 50.0,
+      "effectiveBurnablePercent": 0.0
+    }
+  },
+  {
+    "name": "9. Pristine unstarted window (usedPercent: 0, no resetsAt)",
+    "description": "Fresh, pristine session and weekly windows where zero quota has been used and resetsAt is null. Default to PRESERVE_WINDOWS with 80% burnable surplus.",
+    "now": "2026-11-23T18:00:00.000Z",
+    "pool": {
+      "poolId": "claude-agent",
+      "providerInstanceId": "claudeAgent",
+      "driver": "claudeAgent",
+      "displayName": "Claude Code",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "source": "t3-cache-windows",
+      "checkedAt": "2026-11-23T18:00:00.000Z",
+      "sessionWindow": {
+        "id": "claude-session",
+        "label": "Session",
+        "kind": "session",
+        "usedPercent": 0.0,
+        "remainingPercent": 100.0,
+        "resetsAt": null,
+        "windowDurationMins": 300
+      },
+      "weeklyWindow": {
+        "id": "claude-weekly",
+        "label": "Weekly",
+        "kind": "weekly",
+        "usedPercent": 0.0,
+        "remainingPercent": 100.0,
+        "resetsAt": null,
+        "windowDurationMins": 10080
+      }
+    },
+    "expected": {
+      "harvestMode": "PRESERVE_WINDOWS",
+      "shieldLocked": false,
+      "weeklyBurnableSurplusPercent": 80.0,
+      "effectiveBurnablePercent": 80.0
+    }
+  },
+  {
+    "name": "10. External unmetered Codex pool (EXTERNAL_UNMETERED)",
+    "description": "Provider has unmetered / external usage limits (e.g. ChatGPT OAuth with no quota windows returned). Shield is never locked and harvest mode is EXTERNAL_UNMETERED.",
+    "now": "2026-11-23T18:00:00.000Z",
+    "pool": {
+      "poolId": "codex",
+      "providerInstanceId": "codex_oauth",
+      "driver": "codex",
+      "displayName": "ChatGPT - Personal",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "source": "external-unmetered",
+      "checkedAt": "2026-11-23T18:00:00.000Z",
+      "sessionWindow": null,
+      "weeklyWindow": null,
+      "externalUsageUrl": "https://chatgpt.com/#settings/Usage",
+      "unavailableReason": "unsupported"
+    },
+    "expected": {
+      "harvestMode": "EXTERNAL_UNMETERED",
+      "shieldLocked": false,
+      "weeklyBurnableSurplusPercent": 0.0,
+      "effectiveBurnablePercent": 0.0
+    }
+  }
+]

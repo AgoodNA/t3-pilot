@@ -1,0 +1,38 @@
+{
+  "instanceId": "cursor",
+  "driver": "cursor",
+  "displayName": "Cursor IDE",
+  "showInteractionModeToggle": false,
+  "enabled": true,
+  "installed": true,
+  "version": "0.42.0",
+  "status": "ready",
+  "auth": {
+    "status": "authenticated",
+    "type": "token",
+    "label": "Cursor subscription",
+    "token": "should-never-leak"
+  },
+  "checkedAt": "2026-11-23T18:00:00.000Z",
+  "usageLimits": {
+    "checkedAt": "2026-11-23T18:00:00.000Z",
+    "windows": [
+      {
+        "id": "cursor-session",
+        "label": "Fast Requests (Session)",
+        "kind": "session",
+        "usedPercent": 18.0,
+        "resetsAt": "2026-11-23T21:45:00.000Z",
+        "windowDurationMins": 300
+      },
+      {
+        "id": "cursor-weekly",
+        "label": "Monthly / Weekly Quota",
+        "kind": "weekly",
+        "usedPercent": 40.0,
+        "resetsAt": "2026-11-30T00:00:00.000Z",
+        "windowDurationMins": 10080
+      }
+    ]
+  }
+}

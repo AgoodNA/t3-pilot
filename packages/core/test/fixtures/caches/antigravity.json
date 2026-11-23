@@ -1,0 +1,64 @@
+{
+  "instanceId": "antigravity",
+  "driver": "antigravity",
+  "displayName": "Antigravity",
+  "showInteractionModeToggle": false,
+  "supportedRuntimeModes": [
+    "approval-required",
+    "auto-accept-edits",
+    "full-access"
+  ],
+  "enabled": true,
+  "installed": true,
+  "version": "1.5.15",
+  "status": "ready",
+  "auth": {
+    "token": "should-never-leak",
+    "status": "authenticated",
+    "type": "oauth-personal",
+    "label": "Google account"
+  },
+  "setup": {
+    "canAuthenticate": true,
+    "canInstall": true
+  },
+  "checkedAt": "2026-11-23T18:01:49.948Z",
+  "usageLimits": {
+    "checkedAt": "2026-11-23T18:01:09.148Z",
+    "windows": [
+      {
+        "id": "3p-5h",
+        "label": "Claude & GPT (shared) · 5-hour",
+        "kind": "session",
+        "usedPercent": 12.5,
+        "resetsAt": "2026-11-23T22:30:00.000Z",
+        "windowDurationMins": 300
+      },
+      {
+        "id": "gemini-5h",
+        "label": "Gemini · 5-hour",
+        "kind": "session",
+        "usedPercent": 25.0,
+        "resetsAt": "2026-11-23T22:07:40.000Z",
+        "windowDurationMins": 300
+      },
+      {
+        "id": "3p-weekly",
+        "label": "Claude & GPT (shared) · Weekly",
+        "kind": "weekly",
+        "usedPercent": 35.0,
+        "resetsAt": "2026-11-28T12:00:00.000Z",
+        "windowDurationMins": 10080
+      },
+      {
+        "id": "gemini-weekly",
+        "label": "Gemini · Weekly",
+        "kind": "weekly",
+        "usedPercent": 42.0,
+        "resetsAt": "2026-11-29T04:22:06.000Z",
+        "windowDurationMins": 10080
+      }
+    ],
+    "credentialFingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  }
+}

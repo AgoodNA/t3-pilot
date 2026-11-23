@@ -1,0 +1,37 @@
+{
+  "instanceId": "codex_test_instance",
+  "driver": "codex",
+  "displayName": "ChatGPT - Personal",
+  "showInteractionModeToggle": true,
+  "reportsContextWindow": true,
+  "enabled": true,
+  "installed": true,
+  "version": "0.166.0",
+  "status": "ready",
+  "auth": {
+    "subscriptionSharing": true,
+    "profileId": "oaiapp_sample_profile_12345",
+    "status": "authenticated",
+    "type": "chatgpt",
+    "label": "ChatGPT",
+    "email": "user@example.com",
+    "token": "should-never-leak"
+  },
+  "setup": {
+    "canAuthenticate": true,
+    "canInstall": true
+  },
+  "checkedAt": "2026-11-23T18:01:09.194Z",
+  "usageLimits": {
+    "checkedAt": "2026-11-23T18:01:09.088Z",
+    "windows": [],
+    "unavailable": {
+      "reason": "unsupported",
+      "message": "ChatGPT tracks subscription usage across connected apps. Open Usage settings with the account you connected to Codex."
+    },
+    "externalUsage": {
+      "label": "ChatGPT usage",
+      "url": "https://chatgpt.com/#settings/Usage"
+    }
+  }
+}

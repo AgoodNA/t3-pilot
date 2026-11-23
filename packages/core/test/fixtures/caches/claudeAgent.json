@@ -1,0 +1,38 @@
+{
+  "instanceId": "claudeAgent",
+  "driver": "claudeAgent",
+  "displayName": "Claude Code",
+  "showInteractionModeToggle": false,
+  "enabled": true,
+  "installed": true,
+  "version": "1.0.0",
+  "status": "ready",
+  "auth": {
+    "status": "authenticated",
+    "type": "oauth",
+    "label": "Anthropic account",
+    "token": "should-never-leak"
+  },
+  "checkedAt": "2026-11-23T18:00:00.000Z",
+  "usageLimits": {
+    "checkedAt": "2026-11-23T18:00:00.000Z",
+    "windows": [
+      {
+        "id": "claude-session",
+        "label": "Session (5-hour)",
+        "kind": "session",
+        "usedPercent": 30.0,
+        "resetsAt": "2026-11-23T22:30:00.000Z",
+        "windowDurationMins": 300
+      },
+      {
+        "id": "claude-weekly",
+        "label": "Weekly",
+        "kind": "weekly",
+        "usedPercent": 55.0,
+        "resetsAt": "2026-11-29T18:00:00.000Z",
+        "windowDurationMins": 10080
+      }
+    ]
+  }
+}

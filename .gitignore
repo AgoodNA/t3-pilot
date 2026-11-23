@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+.t3-pilot/state.json
+.t3-pilot/backups/
+.t3-pilot/scratch/
+.env
+.env.*

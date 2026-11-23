@@ -1,0 +1,105 @@
+import { clamp, epochMarginMs, finiteOr, MINUTE_MS, parseTimestamp, reserveFloor } from "./quota-math.js";
+import type { PacingConfig, PoolPacingEvaluation, QuotaPoolSnapshot } from "./types.js";
+
+export function evaluatePoolPacing(
+  pool: QuotaPoolSnapshot,
+  now = new Date(),
+  config: PacingConfig = {},
+): PoolPacingEvaluation {
+  const floor = reserveFloor(config.reserveFloorPercent);
+  const safetyMargin = epochMarginMs(config.epochSafetyMarginMins);
+  // Default C_5h = 14% weekly quota drained per full 5h window (~7 maxed 5h sessions = 100% weekly),
+  // matching SPEC.md's coupled law where 24h left (5 windows * 14% = 70%) with 80% weekly remaining (60% surplus)
+  // yields couplingRatio = 60/70 = 0.857 >= 0.85 -> FULL_THROTTLE_HARVEST out of the box.
+  const nominalCapacity = finiteOr(config.singleWindowCapacityPercent, 14);
+  const capacity = Math.max(1, finiteOr(config.effectiveWindowCapacityPercent, nominalCapacity));
+  const fullThrottleThreshold = finiteOr(config.fullThrottleRatioThreshold, 0.85);
+  const expiringThresholdMs = finiteOr(config.expiringSessionThresholdMins, 45) * MINUTE_MS;
+
+  const weekly = pool.weeklyWindow;
+  const session = pool.sessionWindow;
+  const weeklyRemaining = weekly?.remainingPercent ?? null;
+  const sessionRemaining = session?.remainingPercent ?? null;
+  const weeklySurplus = Math.max(0, (weeklyRemaining ?? 0) - floor);
+  const sessionSurplus = session ? Math.max(0, (sessionRemaining ?? 0) - floor) : weeklySurplus;
+  const weeklyReset = parseTimestamp(weekly?.resetsAt);
+  const sessionReset = parseTimestamp(session?.resetsAt);
+  const pristineWeeklyCycle = weekly?.resetsAt == null && weekly?.usedPercent === 0;
+  const durationMs = weekly ? weekly.windowDurationMins * MINUTE_MS : 0;
+  const timeToWeeklyResetMs = weeklyReset === null
+    ? (pristineWeeklyCycle ? durationMs : null)
+    : Math.max(0, weeklyReset - now.getTime());
+  const timeToSessionResetMs = sessionReset === null ? null : Math.max(0, sessionReset - now.getTime());
+  const remaining5hWindowsCount = timeToWeeklyResetMs === null
+    ? null
+    : Math.max(1, Math.ceil(timeToWeeklyResetMs / (300 * MINUTE_MS)));
+  const maxDrainCapacityPercent = remaining5hWindowsCount === null ? null : remaining5hWindowsCount * capacity;
+  const couplingRatio = maxDrainCapacityPercent === null ? null : weeklySurplus / maxDrainCapacityPercent;
+  const elapsed = timeToWeeklyResetMs !== null && durationMs > 0
+    ? clamp(1 - timeToWeeklyResetMs / durationMs, 0, 1)
+    : null;
+  const ideal = elapsed === null ? null : 100 - elapsed * (100 - floor);
+  const paceDelta = pristineWeeklyCycle ? 0 : (ideal === null || weeklyRemaining === null ? null : weeklyRemaining - ideal);
+
+  let shieldReason: string | null = null;
+  if (weeklyRemaining !== null && weeklyRemaining <= floor) {
+    shieldReason = `Weekly quota is at or below the ${floor}% reserve floor.`;
+  } else if (sessionRemaining !== null && sessionRemaining <= floor) {
+    shieldReason = `Session quota is at or below the ${floor}% reserve floor.`;
+  } else if (weeklyReset !== null && weeklyReset - now.getTime() <= safetyMargin) {
+    shieldReason = "Weekly quota is inside the reset safety margin.";
+  } else if (timeToSessionResetMs !== null && timeToSessionResetMs <= safetyMargin) {
+    shieldReason = "Session quota is inside the reset safety margin.";
+  } else if (config.lockUnknownPools && !weekly && !session) {
+    shieldReason = "No quota windows are available for this pool.";
+  }
+
+  let harvestMode: PoolPacingEvaluation["harvestMode"] = "PRESERVE_WINDOWS";
+  let harvestReason = "Weekly surplus can be preserved for later windows.";
+  if (shieldReason) {
+    harvestMode = "LOCKED_SHIELD";
+    harvestReason = shieldReason;
+  } else if (pool.source === "external-unmetered" && !weekly && !session) {
+    harvestMode = "EXTERNAL_UNMETERED";
+    harvestReason = "The provider reports quota outside T3 Code.";
+  } else if (weeklySurplus > 0 && couplingRatio !== null && couplingRatio >= fullThrottleThreshold) {
+    harvestMode = "FULL_THROTTLE_HARVEST";
+    harvestReason = "Weekly surplus is approaching the remaining session capacity.";
+  } else if (
+    weeklySurplus > 0 && (paceDelta === null || paceDelta >= 0) && sessionSurplus > 0
+    && timeToSessionResetMs !== null && timeToSessionResetMs < expiringThresholdMs
+  ) {
+    harvestMode = "EXPIRING_5H_HARVEST";
+    harvestReason = "The current session is expiring and weekly quota is on pace.";
+  }
+
+  return {
+    poolId: pool.poolId,
+    providerInstanceId: pool.providerInstanceId,
+    reserveFloorPercent: floor,
+    weeklyRemainingPercent: weeklyRemaining,
+    sessionRemainingPercent: sessionRemaining,
+    weeklyBurnableSurplusPercent: weeklySurplus,
+    sessionBurnableSurplusPercent: sessionSurplus,
+    effectiveBurnablePercent: shieldReason ? 0 : Math.min(weeklySurplus, sessionSurplus),
+    timeToWeeklyResetMs,
+    timeToSessionResetMs,
+    remaining5hWindowsCount,
+    maxDrainCapacityPercent,
+    couplingRatio,
+    idealWeeklyRemainingPercent: ideal,
+    paceDeltaPercent: paceDelta,
+    shieldLocked: shieldReason !== null,
+    shieldReason,
+    harvestMode,
+    harvestReason,
+  };
+}
+
+export function evaluateAllPools(
+  pools: readonly QuotaPoolSnapshot[],
+  now = new Date(),
+  config?: PacingConfig,
+): PoolPacingEvaluation[] {
+  return pools.map((pool) => evaluatePoolPacing(pool, now, config));
+}

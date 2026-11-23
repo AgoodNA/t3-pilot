@@ -1,0 +1,26 @@
+{
+  "name": "t3-pilot",
+  "version": "0.1.0",
+  "description": "Smart AI quota governor, 20% emergency reserve shield, coupled 7d x 5h Sparkle harvester, and cross-harness Skills/MCP sync for T3 Code",
+  "type": "module",
+  "bin": {
+    "t3-pilot": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.0",
+    "@t3-pilot/core": "*",
+    "zod": "^3.24.2"
+  }
+}

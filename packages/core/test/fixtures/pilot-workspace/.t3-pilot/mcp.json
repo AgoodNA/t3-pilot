@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "t3-pilot-tools": {
+      "command": "node",
+      "args": ["dist/daemon/mcp.js"],
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "description": "Internal t3-pilot governance tools"
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"],
+      "description": "Web fetch server"
+    }
+  }
+}
