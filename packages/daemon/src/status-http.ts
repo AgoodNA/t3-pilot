@@ -1,3 +1,4 @@
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -84,16 +85,6 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
     return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
   } catch {
     throw new HttpError(400, "Invalid JSON body.");
-  }
-}
-
-function assertLocalRequest(req: IncomingMessage) {
-  const host = URL.parse(`http://${req.headers.host ?? ""}`);
-  const isLocal = host && LOOPBACK_HOSTS.has(host.hostname.replace(/^\[|\]$/g, ""));
-  const isLocalSocket = LOOPBACK_HOSTS.has(req.socket.remoteAddress ?? "");
-  const origin = req.headers.origin;
-  if (!isLocal || !isLocalSocket || (origin && origin !== host.origin && origin !== `https://${host.host}`)) {
-    throw new HttpError(403, "Cockpit actions require a local, same-origin request.");
   }
 }
 
@@ -231,6 +222,8 @@ export async function startPilotStatusServer(
   const getStatus = options.getStatus ?? (() => service!.getStatus());
   if (!options.getStatus && !service) throw new Error("A Cockpit status provider is required.");
   const staticDir = options.staticDir ? await realpath(options.staticDir) : undefined;
+  const pilotToken = randomBytes(32).toString("hex");
+  const pilotTokenBytes = Buffer.from(pilotToken, "utf8");
 
   const handler = async (req: IncomingMessage, res: ServerResponse) => {
     try {
@@ -242,7 +235,9 @@ export async function startPilotStatusServer(
         return;
       }
       if (isRead && pathname === "/api/status") {
-        respondJson(res, 200, await getStatus());
+        const status = await getStatus();
+        res.setHeader("x-pilot-token", pilotToken);
+        respondJson(res, 200, { ...status, pilotToken });
         return;
       }
       if (service && ["/api/route", "/api/sparkle", "/api/shield", "/api/sync"].includes(pathname)) {
@@ -250,7 +245,14 @@ export async function startPilotStatusServer(
           res.setHeader("allow", "POST");
           throw new HttpError(405, "Method not allowed.");
         }
-        assertLocalRequest(req);
+        if (options.allowRemote !== true && !LOOPBACK_HOSTS.has(req.socket.remoteAddress ?? "")) {
+          throw new HttpError(403, "Cockpit actions require a loopback connection.");
+        }
+        const token = req.headers["x-pilot-token"];
+        const tokenBytes = typeof token === "string" ? Buffer.from(token, "utf8") : null;
+        if (tokenBytes?.length !== pilotTokenBytes.length || !timingSafeEqual(tokenBytes, pilotTokenBytes)) {
+          throw new HttpError(403, "Missing or invalid X-Pilot-Token header.");
+        }
         const body = await readJson(req);
         if (pathname === "/api/route") {
           const { task } = validated(routeInput, body);

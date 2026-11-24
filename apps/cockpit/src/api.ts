@@ -18,8 +18,15 @@ export interface CockpitClient {
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
+class HttpError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+  }
+}
+
 export class LiveClient implements CockpitClient {
   readonly mode = "live" as const;
+  private sessionToken: string | null = null;
 
   constructor(
     private readonly baseUrl = "",
@@ -27,7 +34,7 @@ export class LiveClient implements CockpitClient {
     private readonly timeoutMs = 5000,
   ) {}
 
-  private async request<T>(path: string, body?: unknown): Promise<T> {
+  private async request<T>(path: string, body?: unknown): Promise<{ data: T; headers: Headers }> {
     const controller = typeof AbortController === "undefined" ? null : new AbortController();
     const timer = controller ? setTimeout(() => controller.abort(), this.timeoutMs) : null;
     try {
@@ -35,7 +42,10 @@ export class LiveClient implements CockpitClient {
         method: body === undefined ? "GET" : "POST",
         headers: body === undefined
           ? { accept: "application/json" }
-          : { accept: "application/json", "content-type": "application/json" },
+          : {
+            accept: "application/json", "content-type": "application/json",
+            ...(this.sessionToken && { "x-pilot-token": this.sessionToken }),
+          },
         ...(body !== undefined && { body: JSON.stringify(body) }),
         ...(controller && { signal: controller.signal }),
         cache: "no-store",
@@ -45,13 +55,13 @@ export class LiveClient implements CockpitClient {
       try {
         payload = text ? JSON.parse(text) : null;
       } catch {
-        throw new Error(`${path} did not return JSON (HTTP ${response.status}).`);
+        throw new HttpError(response.status, `${path} did not return JSON (HTTP ${response.status}).`);
       }
       if (!response.ok) {
         const message = payload && typeof payload === "object" && "error" in payload ? String((payload as { error: unknown }).error) : "";
-        throw new Error(message || `${path} failed with HTTP ${response.status}.`);
+        throw new HttpError(response.status, message || `${path} failed with HTTP ${response.status}.`);
       }
-      return payload as T;
+      return { data: payload as T, headers: response.headers };
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") throw new Error(`${path} timed out after ${this.timeoutMs} ms.`);
       throw error;
@@ -61,33 +71,45 @@ export class LiveClient implements CockpitClient {
   }
 
   async getStatus(): Promise<PilotStatusSummary> {
-    const status = await this.request<PilotStatusSummary>("/api/status");
+    const { data: status, headers } = await this.request<PilotStatusSummary>("/api/status");
     if (!status || !Array.isArray(status.pools) || !Array.isArray(status.pacing) || !status.shield) {
       throw new Error("/api/status returned an unexpected payload.");
     }
+    this.sessionToken = headers.get("x-pilot-token") ?? status.pilotToken ?? this.sessionToken;
     return status;
   }
 
+  private async postJson<T>(path: string, body: unknown): Promise<T> {
+    if (!this.sessionToken) await this.getStatus();
+    try {
+      return (await this.request<T>(path, body)).data;
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 403) throw error;
+      await this.getStatus();
+      return (await this.request<T>(path, body)).data;
+    }
+  }
+
   route(task: string) {
-    return this.request<RouteDecision>("/api/route", { task });
+    return this.postJson<RouteDecision>("/api/route", { task });
   }
 
   addSparkle(input: AddSparkleInput) {
-    return this.request<{ added: SparkleItem; queue: SparkleItem[] }>("/api/sparkle", input);
+    return this.postJson<{ added: SparkleItem; queue: SparkleItem[] }>("/api/sparkle", input);
   }
 
   configureShield(patch: ShieldPatch) {
-    return this.request<{ shield: ShieldPolicyConfig }>("/api/shield", patch);
+    return this.postJson<{ shield: ShieldPolicyConfig }>("/api/shield", patch);
   }
 
   async checkShield(check: ShieldCheckInput) {
-    const result = await this.request<{ shield: ShieldPolicyConfig; evaluation?: ShieldEvaluationResult }>("/api/shield", { check });
+    const result = await this.postJson<{ shield: ShieldPolicyConfig; evaluation?: ShieldEvaluationResult }>("/api/shield", { check });
     if (!result.evaluation) throw new Error("/api/shield did not return an evaluation.");
     return { shield: result.shield, evaluation: result.evaluation };
   }
 
   sync(input: PilotSyncActionInput) {
-    return this.request<PilotSyncActionOutput>("/api/sync", input);
+    return this.postJson<PilotSyncActionOutput>("/api/sync", input);
   }
 }
 

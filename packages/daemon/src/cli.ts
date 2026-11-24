@@ -162,13 +162,11 @@ export async function runCli(argv: string[], io: PilotCliIO = {}): Promise<numbe
           break;
         }
         const governor = service.createGovernor({ dryRun: values["dry-run"], onError });
-        const workspaceCockpit = resolve(workspaceRoot, "apps/cockpit/dist");
-        const bundledCockpit = fileURLToPath(new URL("../../../apps/cockpit/dist", import.meta.url));
-        const cockpitDist = existsSync(resolve(workspaceCockpit, "index.html"))
-          ? workspaceCockpit
-          : existsSync(resolve(bundledCockpit, "index.html"))
-            ? bundledCockpit
-            : undefined;
+        const cockpitDist = [
+          resolve(workspaceRoot, "apps/cockpit/dist"),
+          fileURLToPath(new URL("../cockpit-dist", import.meta.url)),
+          fileURLToPath(new URL("../../../apps/cockpit/dist", import.meta.url)),
+        ].find((dir) => existsSync(resolve(dir, "index.html")));
         const status = await startPilotStatusServer({
           port, host: values.host, allowRemote: values["allow-remote"], service,
           staticDir: cockpitDist,

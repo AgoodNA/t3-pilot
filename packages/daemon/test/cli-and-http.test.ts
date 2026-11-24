@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { request } from "node:http";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { loadNodeSqlite } from "@t3-pilot/core";
@@ -151,12 +152,46 @@ describe("Pilot status HTTP", () => {
     const post = (path: string, body: unknown, headers: Record<string, string> = {}) => fetch(`${running.url}/api/${path}`, {
       method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body),
     });
-    const action = async (path: string, body: unknown) => {
-      const response = await post(path, body, { origin: running.url });
-      expect(response.status).toBe(200);
-      return response.json();
-    };
     try {
+      const statusUrl = `${running.url}/api/status`;
+      const status = await fetch(statusUrl);
+      expect(status.status).toBe(200);
+      const token = status.headers.get("x-pilot-token")!;
+      expect(token).toMatch(/^[a-f0-9]{64}$/);
+      expect(await status.json()).toMatchObject({ pilotToken: token });
+      const head = await fetch(statusUrl, { method: "HEAD" });
+      expect(head.status).toBe(200);
+      expect(head.headers.get("x-pilot-token")).toBe(token);
+      expect(await head.text()).toBe("");
+
+      const auth = { "x-pilot-token": token };
+      const authorizedPost = (path: string, body: unknown, headers: Record<string, string> = {}) => post(path, body, { ...auth, ...headers });
+      const action = async (path: string, body: unknown) => {
+        const response = await authorizedPost(path, body);
+        expect(response.status).toBe(200);
+        return response.json();
+      };
+
+      const missing = await post("shield", { mode: "off" });
+      expect(missing.status).toBe(403);
+      expect(await missing.json()).toEqual({ error: "Missing or invalid X-Pilot-Token header." });
+      const wrongToken = `${token[0] === "0" ? "1" : "0"}${token.slice(1)}`;
+      expect((await post("shield", { mode: "off" }, { "x-pilot-token": wrongToken })).status).toBe(403);
+      // fetch replaces Host with the URL's host, so send the forwarded headers via node:http.
+      const proxiedStatus = await new Promise<number | undefined>((resolve, reject) => {
+        const proxyRequest = request(`${running.url}/api/shield`, {
+          method: "POST",
+          headers: { ...auth, "content-type": "application/json", host: "preview.t3.gg", origin: "https://connect.t3.gg" },
+        }, (response) => {
+          response.resume();
+          response.once("end", () => resolve(response.statusCode));
+          response.once("error", reject);
+        });
+        proxyRequest.once("error", reject);
+        proxyRequest.end(JSON.stringify({ mode: "guarded-turbo" }));
+      });
+      expect(proxiedStatus).toBe(200);
+
       expect(await (await fetch(running.url)).text()).toContain('<div id="cockpit">');
       const asset = await fetch(`${running.url}/assets/main.js`);
       expect(asset.headers.get("content-type")).toContain("text/javascript");
@@ -173,15 +208,14 @@ describe("Pilot status HTTP", () => {
       expect(await action("shield", { check: { toolName: "run_command", command: "npm publish" } })).toMatchObject({
         shield: { mode: "strict" }, evaluation: { decision: "deny", matchedRuleId: "ask-package-publish" },
       });
-      const invalid = await post("shield", { mode: "off", ruleId: "unknown", enabled: false });
+      const invalid = await authorizedPost("shield", { mode: "off", ruleId: "unknown", enabled: false });
       expect(invalid.status).toBe(400);
-      expect((await post("shield", { mode: "off", check: { toolName: "Read" } })).status).toBe(400);
-      expect((await post("shield", { mode: "off" }, { origin: "https://example.test" })).status).toBe(403);
-      expect((await post("route", { task: "x".repeat(65_536) })).status).toBe(413);
-      expect((await post("route", { task: "" })).status).toBe(400);
-      expect((await post("route", { task: "test" }, { "content-type": "text/plain" })).status).toBe(415);
+      expect((await authorizedPost("shield", { mode: "off", check: { toolName: "Read" } })).status).toBe(400);
+      expect((await authorizedPost("route", { task: "x".repeat(65_536) })).status).toBe(413);
+      expect((await authorizedPost("route", { task: "" })).status).toBe(400);
+      expect((await authorizedPost("route", { task: "test" }, { "content-type": "text/plain" })).status).toBe(415);
       const malformed = await fetch(`${running.url}/api/sync`, {
-        method: "POST", headers: { "content-type": "application/json" }, body: "{",
+        method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{",
       });
       expect(malformed.status).toBe(400);
       expect((await (await fetch(`${running.url}/api/status`)).json()).shield.mode).toBe("strict");

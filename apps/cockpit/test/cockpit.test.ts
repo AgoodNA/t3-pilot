@@ -258,14 +258,48 @@ describe("LiveClient REST contract", () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const client = new LiveClient("", async (url, init) => {
       calls.push({ url, ...(init && { init }) });
+      if (url === "/api/status") {
+        return Response.json({ ...backend("cruise").snapshot(), pilotToken: "body-token" }, { headers: { "x-pilot-token": "header-token" } });
+      }
       if (url === "/api/shield") return new Response(JSON.stringify({ error: "A shield check must be a separate dry-run request." }), { status: 400 });
       return new Response(JSON.stringify({ task: "x", category: "UI_FRONTEND_LONGFORM", ranked: [], selected: null, warnings: [], manualOverride: false }), { status: 200 });
     });
     await client.route("Polish UI");
-    expect(calls[0]).toMatchObject({ url: "/api/route", init: { method: "POST", body: JSON.stringify({ task: "Polish UI" }) } });
-    expect((calls[0]!.init!.headers as Record<string, string>)["content-type"]).toBe("application/json");
     await expect(client.checkShield({ toolName: "Bash", command: "ls" })).rejects.toThrow(/separate dry-run/);
-    expect(JSON.parse(String(calls[1]!.init!.body))).toEqual({ check: { toolName: "Bash", command: "ls" } });
+    expect(calls).toMatchObject([
+      { url: "/api/status", init: { method: "GET" } },
+      { url: "/api/route", init: {
+        method: "POST", body: JSON.stringify({ task: "Polish UI" }),
+        headers: { "content-type": "application/json", "x-pilot-token": "header-token" },
+      } },
+      { url: "/api/shield", init: { method: "POST", body: JSON.stringify({ check: { toolName: "Bash", command: "ls" } }) } },
+    ]);
+  });
+
+  it.each([true, false])("refreshes a rotated token once (retry authorized: %s)", async (retryAuthorized) => {
+    const status = backend("cruise").snapshot();
+    const calls: { url: string; token: string | null }[] = [];
+    let serverToken = "initial-token";
+    const client = new LiveClient("", async (url, init) => {
+      const token = new Headers(init?.headers).get("x-pilot-token");
+      calls.push({ url, token });
+      if (url === "/api/status") return Response.json({ ...status, pilotToken: serverToken });
+      if (!retryAuthorized || token !== serverToken) {
+        return Response.json({ error: "Missing or invalid X-Pilot-Token header." }, { status: 403 });
+      }
+      return Response.json({ shield: status.shield });
+    });
+    await client.getStatus();
+    serverToken = "rotated-token";
+    const action = client.configureShield({ mode: "strict" });
+    if (retryAuthorized) await expect(action).resolves.toEqual({ shield: status.shield });
+    else await expect(action).rejects.toThrow(/Missing or invalid X-Pilot-Token/);
+    expect(calls).toEqual([
+      { url: "/api/status", token: null },
+      { url: "/api/shield", token: "initial-token" },
+      { url: "/api/status", token: null },
+      { url: "/api/shield", token: "rotated-token" },
+    ]);
   });
 
   it("rejects non-JSON status pages (e.g. GitHub Pages 404) so the UI falls back to demo", async () => {

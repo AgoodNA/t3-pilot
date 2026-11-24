@@ -309,6 +309,7 @@ export interface PilotConfig {
 }
 
 export interface PilotStatusSummary {
+  pilotToken?: string;
   generatedAt: string;
   workspaceRoot: string;
   config: PilotConfig;

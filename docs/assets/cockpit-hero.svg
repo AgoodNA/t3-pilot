@@ -1,0 +1,351 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">t3-pilot Visual Cockpit running inside T3 Code</title>
+  <desc id="hero-desc">Split-pane T3 Code window: a chat thread with an inline Pilot card on the left, and the t3-pilot Visual Cockpit on the right showing three quota pools with 5h and 7d meters and 20% reserve floor ticks, the 168-hour coupled 7d x 5h live pace curve, the Sparkle Queue counting down to hardDeadlineAt, and the Guarded Turbo PreToolUse sandbox.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1526"/>
+      <stop offset="1" stop-color="#070b15"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#121c30"/>
+      <stop offset="1" stop-color="#0d1524"/>
+    </linearGradient>
+    <linearGradient id="run" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0e2433"/>
+      <stop offset="1" stop-color="#0c1726"/>
+    </linearGradient>
+    <linearGradient id="ahead" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0.02"/>
+    </linearGradient>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#ffffff" stroke-opacity="0.025"/>
+    </pattern>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="2.5" height="6" fill="#ef4444" fill-opacity="0.22"/>
+    </pattern>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="2.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="frame"><rect width="1200" height="680" rx="20"/></clipPath>
+  </defs>
+  <style>
+    .sans{font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+    .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
+    .t1{fill:#e6edf7}.t2{fill:#94a3b8}.t3{fill:#64748b}
+    .b{font-weight:700}.sb{font-weight:600}
+    .pnl{fill:url(#panel);stroke:#1f2a40;stroke-width:1}
+    .trk{fill:#1e293b}
+    .tick{stroke:#ef4444;stroke-width:2;stroke-linecap:round}
+  </style>
+
+  <g clip-path="url(#frame)">
+    <rect width="1200" height="680" fill="url(#bg)"/>
+    <rect width="1200" height="680" fill="url(#grid)"/>
+
+    <!-- T3 Code window chrome -->
+    <rect width="1200" height="41" fill="#0a101d"/>
+    <line x1="0" y1="41" x2="1200" y2="41" stroke="#1f2a40"/>
+    <circle cx="26" cy="21" r="6" fill="#ff5f57"/>
+    <circle cx="46" cy="21" r="6" fill="#febc2e"/>
+    <circle cx="66" cy="21" r="6" fill="#28c840"/>
+    <text x="88" y="26" class="sans b t1" font-size="13">T3 Code</text>
+    <text x="152" y="26" class="sans t3" font-size="13">/ t3-pilot</text>
+    <rect x="462" y="9" width="276" height="24" rx="12" fill="#111a2e" stroke="#1f2a40"/>
+    <circle cx="480" cy="21" r="3.5" fill="#34d399"/>
+    <text x="604" y="25.5" text-anchor="middle" class="mono t2" font-size="11">preview · 127.0.0.1:4733/#pacing</text>
+    <text x="1084" y="25.5" text-anchor="end" class="mono t3" font-size="10">project script →</text>
+    <rect x="1094" y="8" width="92" height="26" rx="7" fill="#0e7490" fill-opacity="0.28" stroke="#22d3ee" filter="url(#glow)"/>
+    <path d="M1110 15.5 L1119 21 L1110 26.5 Z" fill="#67e8f9"/>
+    <text x="1126" y="25.5" class="sans b" font-size="12.5" fill="#cffafe">Pilot</text>
+
+    <!-- ===== Left pane: T3 thread ===== -->
+    <rect x="12" y="52" width="250" height="616" rx="12" fill="#0d1524" stroke="#1f2a40"/>
+    <text x="28" y="74" class="mono t3" font-size="9.5" letter-spacing="1">THREAD</text>
+    <text x="28" y="93" class="sans sb t1" font-size="13">Nightly harvest</text>
+    <line x1="24" y1="105" x2="250" y2="105" stroke="#1f2a40"/>
+
+    <rect x="58" y="116" width="192" height="46" rx="10" fill="#1e293b"/>
+    <text x="70" y="135" class="sans t1" font-size="11.5">Queue a perf audit for</text>
+    <text x="70" y="151" class="sans t1" font-size="11.5">tonight's expiring quota</text>
+
+    <rect x="24" y="174" width="226" height="26" rx="7" fill="#0f1a2c" stroke="#1f2a40"/>
+    <text x="34" y="191" class="mono" font-size="10.5" fill="#34d399">✓ pilot_sparkle_add</text>
+    <text x="240" y="191" text-anchor="end" class="mono t3" font-size="9.5">worktree</text>
+
+    <rect x="24" y="210" width="226" height="196" rx="10" fill="#0a1220" stroke="#22d3ee" stroke-opacity="0.4"/>
+    <text x="36" y="228" class="mono b" font-size="9" fill="#67e8f9" letter-spacing="0.6">PILOT CARD · html_render</text>
+    <text x="36" y="254" class="mono t2" font-size="10">codex</text>
+    <rect x="92" y="248" width="114" height="6" rx="3" class="trk"/>
+    <rect x="92" y="248" width="91.2" height="6" rx="3" fill="#22d3ee"/>
+    <line x1="114.8" y1="245" x2="114.8" y2="257" class="tick" stroke-width="1.5"/>
+    <text x="240" y="254" text-anchor="end" class="mono b t1" font-size="10">80%</text>
+    <text x="36" y="280" class="mono t2" font-size="10">gemini</text>
+    <rect x="92" y="274" width="114" height="6" rx="3" class="trk"/>
+    <rect x="92" y="274" width="71.8" height="6" rx="3" fill="#818cf8"/>
+    <line x1="114.8" y1="271" x2="114.8" y2="283" class="tick" stroke-width="1.5"/>
+    <text x="240" y="280" text-anchor="end" class="mono b t1" font-size="10">63%</text>
+    <text x="36" y="306" class="mono t2" font-size="10">claude</text>
+    <rect x="92" y="300" width="114" height="6" rx="3" class="trk"/>
+    <rect x="92" y="300" width="100.3" height="6" rx="3" fill="#fb923c"/>
+    <line x1="114.8" y1="297" x2="114.8" y2="309" class="tick" stroke-width="1.5"/>
+    <text x="240" y="306" text-anchor="end" class="mono b t1" font-size="10">88%</text>
+    <line x1="36" y1="320" x2="238" y2="320" stroke="#1f2a40"/>
+    <text x="36" y="337" class="mono t3" font-size="9" letter-spacing="0.8">ROUTE</text>
+    <text x="36" y="355" class="mono b t1" font-size="12.5">gpt-6.2-sol</text>
+    <text x="36" y="372" class="mono t2" font-size="9.5">score 0.79 = 1.00 × 0.55 × 1.43</text>
+    <text x="36" y="390" class="mono t3" font-size="8.5">SYSTEMS_PARSERS_TESTS_DEBUGGING</text>
+
+    <text x="28" y="428" class="sans t2" font-size="11.5">Leased until resetAt - 2m.</text>
+    <text x="28" y="444" class="sans t2" font-size="11.5">I yield the instant you type,</text>
+    <text x="28" y="460" class="sans t2" font-size="11.5">then wait out a 15m cooldown.</text>
+
+    <rect x="24" y="486" width="226" height="98" rx="10" fill="none" stroke="#1f2a40" stroke-dasharray="4 3"/>
+    <text x="36" y="506" class="mono t3" font-size="9" letter-spacing="0.8">HUMAN-FIRST WATCH</text>
+    <text x="36" y="525" class="mono t2" font-size="10">statev2.sqlite?mode=ro</text>
+    <text x="36" y="542" class="mono t3" font-size="10">-wal fs.watch · 25ms</text>
+    <circle cx="40" cy="556" r="3.5" fill="#34d399"/>
+    <text x="50" y="560" class="mono" font-size="10" fill="#6ee7b7">human turn: idle</text>
+    <text x="36" y="577" class="mono t3" font-size="10">cooldown 15m · clear</text>
+
+    <rect x="24" y="600" width="226" height="56" rx="10" fill="#0f1a2c" stroke="#1f2a40"/>
+    <text x="36" y="621" class="sans t3" font-size="12">Ask anything…</text>
+    <rect x="34" y="632" width="96" height="16" rx="8" fill="#1e293b"/>
+    <text x="82" y="643.5" text-anchor="middle" class="mono t2" font-size="9">claude-opus-5-5</text>
+    <rect x="136" y="632" width="104" height="16" rx="8" fill="#052e1f" stroke="#10b981" stroke-opacity="0.7"/>
+    <text x="188" y="643.5" text-anchor="middle" class="mono b" font-size="9" fill="#6ee7b7">◆ Guarded Turbo</text>
+
+    <!-- ===== Right pane: Cockpit ===== -->
+    <!-- Command bar -->
+    <rect x="274" y="52" width="914" height="44" rx="10" class="pnl"/>
+    <circle cx="296" cy="74" r="10" fill="none" stroke="#22d3ee" stroke-width="2"/>
+    <path d="M296 74 L302.5 68" stroke="#67e8f9" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="296" cy="74" r="2" fill="#67e8f9"/>
+    <text x="314" y="79.5" class="sans b t1" font-size="15">t3-pilot&#160;<tspan class="t2" font-weight="500">· Visual Cockpit</tspan></text>
+    <rect x="528" y="63" width="130" height="22" rx="11" fill="#052e1f" stroke="#10b981"/>
+    <circle cx="542" cy="74" r="4" fill="#34d399" filter="url(#glow)"/>
+    <text x="552" y="78" class="mono b" font-size="10.5" fill="#6ee7b7">LIVE T3 DAEMON</text>
+    <rect x="668" y="63" width="262" height="22" rx="11" fill="#082f3a" stroke="#0891b2"/>
+    <text x="799" y="78" text-anchor="middle" class="mono b" font-size="10.5" fill="#67e8f9">HUMAN TURN IDLE · CLEAR FOR PILOT</text>
+    <text x="1014" y="78" text-anchor="end" class="mono t3" font-size="10">poll 10s</text>
+    <rect x="1026" y="61" width="150" height="26" rx="7" fill="#0b2a1a" stroke="#34d399"/>
+    <path d="M1041 66 L1048 68.5 V74 C1048 78 1045 80.5 1041 82 C1037 80.5 1034 78 1034 74 V68.5 Z" fill="#34d399" fill-opacity="0.25" stroke="#34d399" stroke-width="1.4"/>
+    <text x="1055" y="78.5" class="mono b" font-size="11" fill="#86efac">GUARDED TURBO: ON</text>
+
+    <!-- View nav -->
+    <text x="290" y="120" class="mono" font-size="11"><tspan class="t3">01</tspan>&#160;&#160;<tspan class="t1" font-weight="600">Pacing &amp; Router</tspan></text>
+    <rect x="426" y="110" width="16" height="13" rx="6.5" fill="#052e1f"/>
+    <text x="434" y="120" text-anchor="middle" class="mono b" font-size="9" fill="#6ee7b7">2</text>
+    <text x="470" y="120" class="mono" font-size="11"><tspan class="t3">02</tspan>&#160;&#160;<tspan class="t2">Sparkle Queue</tspan></text>
+    <rect x="592" y="110" width="26" height="13" rx="6.5" fill="#082f3a"/>
+    <text x="605" y="120" text-anchor="middle" class="mono b" font-size="9" fill="#67e8f9">●2</text>
+    <text x="646" y="120" class="mono" font-size="11"><tspan class="t3">03</tspan>&#160;&#160;<tspan class="t2">Shield &amp; Sync</tspan></text>
+    <rect x="768" y="110" width="22" height="13" rx="6.5" fill="#0b2a1a"/>
+    <text x="779" y="120" text-anchor="middle" class="mono b" font-size="9" fill="#86efac">GT</text>
+    <text x="1176" y="120" text-anchor="end" class="mono t3" font-size="10">workspace ~/projects/t3-pilot</text>
+    <line x1="274" y1="129" x2="1188" y2="129" stroke="#1f2a40"/>
+    <line x1="286" y1="129" x2="446" y2="129" stroke="#22d3ee" stroke-width="2"/>
+
+    <!-- Pool card: Codex -->
+    <rect x="274" y="138" width="294" height="138" rx="10" class="pnl"/>
+    <rect x="274" y="150" width="3" height="26" rx="1.5" fill="#22d3ee"/>
+    <text x="290" y="161" class="sans b t1" font-size="13">Codex</text>
+    <text x="290" y="177" class="mono t2" font-size="10.5">gpt-6.2-sol</text>
+    <rect x="424" y="149" width="132" height="18" rx="9" fill="#052e1f" stroke="#34d399"/>
+    <text x="490" y="161.5" text-anchor="middle" class="mono b" font-size="9.5" fill="#86efac">FULL_THROTTLE_HARVEST</text>
+    <text x="314" y="191" text-anchor="middle" class="mono" font-size="8" fill="#f87171">20% floor</text>
+    <text x="290" y="205" class="mono t2" font-size="10.5">5h</text>
+    <rect x="314" y="197" width="186" height="8" rx="4" class="trk"/>
+    <rect x="314" y="197" width="119" height="8" rx="4" fill="#22d3ee"/>
+    <line x1="351.2" y1="194" x2="351.2" y2="208" class="tick"/>
+    <text x="554" y="205.5" text-anchor="end" class="mono b t1" font-size="11">64%</text>
+    <text x="290" y="229" class="mono t2" font-size="10.5">7d</text>
+    <rect x="314" y="221" width="186" height="8" rx="4" class="trk"/>
+    <rect x="314" y="221" width="148.8" height="8" rx="4" fill="#22d3ee"/>
+    <line x1="351.2" y1="218" x2="351.2" y2="232" class="tick"/>
+    <text x="554" y="229.5" text-anchor="end" class="mono b t1" font-size="11">80%</text>
+    <text x="290" y="251" class="mono t3" font-size="10">5h resetAt <tspan class="t1">03:11:47</tspan></text>
+    <text x="426" y="251" class="mono t3" font-size="10">7d resetAt <tspan class="t1">23h 41m</tspan></text>
+    <text x="290" y="267" class="mono" font-size="9.5" fill="#6ee7b7">S_week 60% / (5 × 14%) = 0.86 ≥ 0.85</text>
+
+    <!-- Pool card: Antigravity Gemini -->
+    <rect x="584" y="138" width="294" height="138" rx="10" class="pnl"/>
+    <rect x="584" y="150" width="3" height="26" rx="1.5" fill="#818cf8"/>
+    <text x="600" y="161" class="sans b t1" font-size="13">Antigravity Gemini</text>
+    <text x="600" y="177" class="mono t2" font-size="10.5">gemini-4-carbon · neon</text>
+    <rect x="746" y="149" width="120" height="18" rx="9" fill="#3a2a06" stroke="#f59e0b"/>
+    <text x="806" y="161.5" text-anchor="middle" class="mono b" font-size="9.5" fill="#fcd34d">EXPIRING_5H_HARVEST</text>
+    <text x="624" y="191" text-anchor="middle" class="mono" font-size="8" fill="#f87171">20% floor</text>
+    <text x="600" y="205" class="mono t2" font-size="10.5">5h</text>
+    <rect x="624" y="197" width="186" height="8" rx="4" class="trk"/>
+    <rect x="624" y="197" width="106" height="8" rx="4" fill="#818cf8"/>
+    <line x1="661.2" y1="194" x2="661.2" y2="208" class="tick"/>
+    <text x="864" y="205.5" text-anchor="end" class="mono b t1" font-size="11">57%</text>
+    <text x="600" y="229" class="mono t2" font-size="10.5">7d</text>
+    <rect x="624" y="221" width="186" height="8" rx="4" class="trk"/>
+    <rect x="624" y="221" width="117.2" height="8" rx="4" fill="#818cf8"/>
+    <line x1="661.2" y1="218" x2="661.2" y2="232" class="tick"/>
+    <text x="864" y="229.5" text-anchor="end" class="mono b t1" font-size="11">63%</text>
+    <text x="600" y="251" class="mono t3" font-size="10">5h resetAt <tspan fill="#fcd34d">00:38:12</tspan></text>
+    <text x="736" y="251" class="mono t3" font-size="10">7d resetAt <tspan class="t1">3d 04h</tspan></text>
+    <text x="600" y="267" class="mono" font-size="9.5" fill="#fcd34d">5h expires in 38m &lt; 45m · pace +6.8</text>
+
+    <!-- Pool card: Antigravity Claude -->
+    <rect x="894" y="138" width="294" height="138" rx="10" class="pnl"/>
+    <rect x="894" y="150" width="3" height="26" rx="1.5" fill="#fb923c"/>
+    <text x="910" y="161" class="sans b t1" font-size="13">Antigravity Claude</text>
+    <text x="910" y="177" class="mono t2" font-size="10.5">claude-opus-5-5 · sonnet-5-5</text>
+    <rect x="1073" y="149" width="103" height="18" rx="9" fill="#0f1d33" stroke="#60a5fa"/>
+    <text x="1124.5" y="161.5" text-anchor="middle" class="mono b" font-size="9.5" fill="#93c5fd">PRESERVE_WINDOWS</text>
+    <text x="934" y="191" text-anchor="middle" class="mono" font-size="8" fill="#f87171">20% floor</text>
+    <text x="910" y="205" class="mono t2" font-size="10.5">5h</text>
+    <rect x="934" y="197" width="186" height="8" rx="4" class="trk"/>
+    <rect x="934" y="197" width="171.1" height="8" rx="4" fill="#fb923c"/>
+    <line x1="971.2" y1="194" x2="971.2" y2="208" class="tick"/>
+    <text x="1174" y="205.5" text-anchor="end" class="mono b t1" font-size="11">92%</text>
+    <text x="910" y="229" class="mono t2" font-size="10.5">7d</text>
+    <rect x="934" y="221" width="186" height="8" rx="4" class="trk"/>
+    <rect x="934" y="221" width="163.7" height="8" rx="4" fill="#fb923c"/>
+    <line x1="971.2" y1="218" x2="971.2" y2="232" class="tick"/>
+    <text x="1174" y="229.5" text-anchor="end" class="mono b t1" font-size="11">88%</text>
+    <text x="910" y="251" class="mono t3" font-size="10">5h resetAt <tspan class="t1">02:47:05</tspan></text>
+    <text x="1046" y="251" class="mono t3" font-size="10">7d resetAt <tspan class="t1">5d 10h</tspan></text>
+    <text x="910" y="267" class="mono" font-size="9.5" fill="#93c5fd">ratio 0.19 · pace +6.1 · banking windows</text>
+
+    <!-- Pace curve -->
+    <rect x="274" y="286" width="914" height="180" rx="10" class="pnl"/>
+    <text x="290" y="307" class="sans b t1" font-size="13">Coupled 7d × 5h Live Pace Curve&#160;&#160;&#160;<tspan class="mono t3" font-size="10" font-weight="400">168h weekly window</tspan></text>
+    <line x1="752" y1="303.5" x2="776" y2="303.5" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="782" y="307" class="mono t2" font-size="10">ideal 100% → 20%</text>
+    <rect x="894" y="298" width="12" height="10" fill="url(#hatch)" stroke="#ef4444" stroke-width="0.8"/>
+    <text x="912" y="307" class="mono t2" font-size="10">0–20% shield</text>
+    <line x1="1004" y1="303.5" x2="1024" y2="303.5" stroke="#34d399" stroke-width="2" stroke-dasharray="4 3"/>
+    <text x="1030" y="307" class="mono t2" font-size="10">harvest glide</text>
+
+    <g class="mono t3" font-size="9.5" text-anchor="end">
+      <text x="322" y="325">100%</text>
+      <text x="322" y="350">80%</text>
+      <text x="322" y="387">50%</text>
+      <text x="322" y="424.5">20%</text>
+      <text x="322" y="449">0%</text>
+    </g>
+    <g stroke="#1f2a40" stroke-dasharray="2 4">
+      <line x1="330" y1="322" x2="1168" y2="322"/>
+      <line x1="330" y1="346.8" x2="1168" y2="346.8"/>
+      <line x1="330" y1="384" x2="1168" y2="384"/>
+      <line x1="449.7" y1="322" x2="449.7" y2="446"/>
+      <line x1="569.4" y1="322" x2="569.4" y2="446"/>
+      <line x1="689.1" y1="322" x2="689.1" y2="446"/>
+      <line x1="808.9" y1="322" x2="808.9" y2="446"/>
+      <line x1="928.6" y1="322" x2="928.6" y2="446"/>
+      <line x1="1048.3" y1="322" x2="1048.3" y2="446"/>
+    </g>
+    <rect x="330" y="421.2" width="838" height="24.8" fill="#ef4444" fill-opacity="0.07"/>
+    <rect x="330" y="421.2" width="838" height="24.8" fill="url(#hatch)"/>
+    <line x1="330" y1="421.2" x2="1168" y2="421.2" stroke="#ef4444" stroke-width="1.25"/>
+    <text x="344" y="437.5" class="mono b" font-size="9" fill="#fca5a5" letter-spacing="0.6">20% EMERGENCY RESERVE SHIELD · LOCKED_SHIELD BELOW THIS LINE</text>
+    <line x1="330" y1="446" x2="1168" y2="446" stroke="#334155"/>
+    <g class="mono t3" font-size="9.5" text-anchor="middle">
+      <text x="330" y="459" text-anchor="start">0h</text>
+      <text x="449.7" y="459">24h</text>
+      <text x="569.4" y="459">48h</text>
+      <text x="689.1" y="459">72h</text>
+      <text x="808.9" y="459">96h</text>
+      <text x="928.6" y="459">120h</text>
+      <text x="1048.3" y="459">144h</text>
+      <text x="1168" y="459" text-anchor="end">168h</text>
+    </g>
+
+    <polygon points="330,322 420,323.5 510,325 600,328.5 690,331 780,335.5 870,339 960,343 1049.8,346.8 1049.8,407.2" fill="url(#ahead)"/>
+    <line x1="330" y1="322" x2="1168" y2="421.2" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 5"/>
+    <polyline points="330,322 420,323.5 510,325 600,328.5 690,331 780,335.5 870,339 960,343 1049.8,346.8" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linejoin="round"/>
+    <line x1="1049.8" y1="346.8" x2="1165" y2="421.2" stroke="#34d399" stroke-width="2" stroke-dasharray="4 3"/>
+    <line x1="1168" y1="322" x2="1168" y2="446" stroke="#ef4444" stroke-width="1.5"/>
+    <text x="1163" y="318" text-anchor="end" class="mono b" font-size="9" fill="#f87171">resetAt · epoch lock</text>
+    <text x="880" y="378" class="mono b" font-size="9" fill="#67e8f9" letter-spacing="0.5">AHEAD OF PACE · SURPLUS</text>
+
+    <circle cx="519.4" cy="336.9" r="10" fill="#fb923c" fill-opacity="0.18"/>
+    <circle cx="519.4" cy="336.9" r="5" fill="#fb923c" stroke="#0b1220" stroke-width="2"/>
+    <rect x="466" y="352" width="106" height="16" rx="8" fill="#0b1220" stroke="#fb923c" stroke-opacity="0.6"/>
+    <text x="519" y="363.5" text-anchor="middle" class="mono b" font-size="9.5" fill="#fdba74">Claude 88% +6.1</text>
+
+    <circle cx="789.2" cy="367.9" r="10" fill="#818cf8" fill-opacity="0.18"/>
+    <circle cx="789.2" cy="367.9" r="5" fill="#818cf8" stroke="#0b1220" stroke-width="2"/>
+    <rect x="736" y="383" width="106" height="16" rx="8" fill="#0b1220" stroke="#818cf8" stroke-opacity="0.6"/>
+    <text x="789" y="394.5" text-anchor="middle" class="mono b" font-size="9.5" fill="#c7d2fe">Gemini 63% +6.8</text>
+
+    <circle cx="1049.8" cy="346.8" r="11" fill="#22d3ee" fill-opacity="0.2" filter="url(#glow)"/>
+    <circle cx="1049.8" cy="346.8" r="5.5" fill="#22d3ee" stroke="#0b1220" stroke-width="2"/>
+    <rect x="936" y="325" width="106" height="16" rx="8" fill="#0b1220" stroke="#22d3ee" stroke-opacity="0.7"/>
+    <text x="989" y="336.5" text-anchor="middle" class="mono b" font-size="9.5" fill="#a5f3fc">Codex 80% +48.7</text>
+
+    <!-- Sparkle Queue -->
+    <rect x="274" y="476" width="452" height="192" rx="10" class="pnl"/>
+    <text x="290" y="497" class="sans b t1" font-size="13">Sparkle Queue&#160;&#160;&#160;<tspan class="mono t3" font-size="10" font-weight="400">SPARKLES.md · 2 pending</tspan></text>
+    <rect x="592" y="485" width="120" height="17" rx="8.5" fill="#3a2a06" stroke="#f59e0b" stroke-opacity="0.8"/>
+    <text x="652" y="497" text-anchor="middle" class="mono b" font-size="9" fill="#fcd34d">EPOCH LEASE ACTIVE</text>
+
+    <rect x="288" y="508" width="424" height="78" rx="8" fill="url(#run)" stroke="#22d3ee" stroke-opacity="0.5"/>
+    <circle cx="304" cy="522.5" r="3.5" fill="#22d3ee" filter="url(#glow)"/>
+    <text x="312" y="526" class="mono b" font-size="9.5" fill="#67e8f9" letter-spacing="0.6">RUNNING</text>
+    <text x="300" y="547" class="mono" font-size="12"><tspan fill="#c4b5fd">[worktree]</tspan>&#160;<tspan class="t1" font-weight="700">sparkle/perf-audit</tspan></text>
+    <text x="300" y="565" class="mono t3" font-size="9.5">gpt-6.2-sol · codex · branch → PR, never main</text>
+    <text x="700" y="526" text-anchor="end" class="mono t3" font-size="9">hardDeadlineAt = resetAt - 2m</text>
+    <text x="700" y="553" text-anchor="end" class="mono b" font-size="22" fill="#fde68a">03:09:47</text>
+    <rect x="300" y="574" width="400" height="4" rx="2" class="trk"/>
+    <rect x="300" y="574" width="248" height="4" rx="2" fill="#22d3ee"/>
+
+    <rect x="298" y="593" width="72" height="16" rx="8" fill="#1e293b"/>
+    <text x="334" y="604.5" text-anchor="middle" class="mono b t2" font-size="9">PENDING</text>
+    <text x="382" y="605" class="mono t1" font-size="10"><tspan fill="#5eead4">[scratch]</tspan> token-burn × commits timeline</text>
+    <text x="712" y="605" text-anchor="end" class="mono t3" font-size="9">gemini-4-carbon</text>
+
+    <rect x="298" y="616" width="72" height="16" rx="8" fill="#1e293b"/>
+    <text x="334" y="627.5" text-anchor="middle" class="mono b t2" font-size="9">PENDING</text>
+    <text x="382" y="628" class="mono t1" font-size="10"><tspan fill="#c4b5fd">[worktree]</tspan> sparkle/flaky-test-sweep</text>
+    <text x="712" y="628" text-anchor="end" class="mono t3" font-size="9">gpt-6.2-sol</text>
+
+    <rect x="298" y="639" width="72" height="16" rx="8" fill="#052e1f"/>
+    <text x="334" y="650.5" text-anchor="middle" class="mono b" font-size="9" fill="#6ee7b7">COMPLETED</text>
+    <text x="382" y="651" class="mono t1" font-size="10"><tspan fill="#c4b5fd">[worktree]</tspan> sparkle/i18n-zh-docs</text>
+    <text x="712" y="651" text-anchor="end" class="mono" font-size="9" fill="#6ee7b7">PR opened ✓</text>
+
+    <!-- Guarded Turbo sandbox -->
+    <rect x="738" y="476" width="450" height="192" rx="10" class="pnl"/>
+    <text x="754" y="497" class="sans b t1" font-size="13">Guarded Turbo&#160;&#160;&#160;<tspan class="mono t3" font-size="10" font-weight="400">PreToolUse sandbox</tspan></text>
+    <rect x="1054" y="485" width="120" height="17" rx="8.5" fill="#0b2a1a" stroke="#34d399" stroke-opacity="0.7"/>
+    <text x="1114" y="497" text-anchor="middle" class="mono b" font-size="9" fill="#86efac">mode guarded-turbo</text>
+
+    <rect x="752" y="508" width="422" height="28" rx="6" fill="#0a111f" stroke="#1f2a40"/>
+    <text x="764" y="526.5" class="mono t3" font-size="11.5">$</text>
+    <text x="778" y="526.5" class="mono b t1" font-size="11.5">rm -rf /</text>
+    <text x="1072" y="526" text-anchor="end" class="mono t3" font-size="9">deny-destructive-delete</text>
+    <rect x="1080" y="513" width="84" height="18" rx="5" fill="#3b0d12" stroke="#ef4444"/>
+    <text x="1122" y="525.5" text-anchor="middle" class="mono b" font-size="10" fill="#fca5a5">DENY</text>
+
+    <rect x="752" y="540" width="422" height="28" rx="6" fill="#0a111f" stroke="#1f2a40"/>
+    <text x="764" y="558.5" class="mono t3" font-size="11.5">$</text>
+    <text x="778" y="558.5" class="mono b t1" font-size="11.5">cat ~/.ssh/id_ed25519</text>
+    <text x="1072" y="558" text-anchor="end" class="mono t3" font-size="9">deny-host-credentials</text>
+    <rect x="1080" y="545" width="84" height="18" rx="5" fill="#3b0d12" stroke="#ef4444"/>
+    <text x="1122" y="557.5" text-anchor="middle" class="mono b" font-size="10" fill="#fca5a5">DENY</text>
+
+    <rect x="752" y="572" width="422" height="28" rx="6" fill="#0a111f" stroke="#1f2a40"/>
+    <text x="764" y="590.5" class="mono t3" font-size="11.5">$</text>
+    <text x="778" y="590.5" class="mono b t1" font-size="11.5">npm publish</text>
+    <text x="1072" y="590" text-anchor="end" class="mono t3" font-size="9">ask-package-publish</text>
+    <rect x="1080" y="577" width="84" height="18" rx="5" fill="#3a2a06" stroke="#f59e0b"/>
+    <text x="1122" y="589.5" text-anchor="middle" class="mono b" font-size="10" fill="#fcd34d">FORCE_ASK</text>
+
+    <rect x="752" y="604" width="422" height="28" rx="6" fill="#0a111f" stroke="#1f2a40"/>
+    <text x="764" y="622.5" class="mono t3" font-size="11.5">$</text>
+    <text x="778" y="622.5" class="mono b t1" font-size="11.5">npm test</text>
+    <text x="1072" y="622" text-anchor="end" class="mono t3" font-size="9">no rule matched</text>
+    <rect x="1080" y="609" width="84" height="18" rx="5" fill="#052e1f" stroke="#10b981"/>
+    <text x="1122" y="621.5" text-anchor="middle" class="mono b" font-size="10" fill="#6ee7b7">ALLOW</text>
+
+    <text x="754" y="653" class="mono t3" font-size="9"><tspan fill="#34d399" font-weight="700">sync →</tspan> .agents/hooks.json · .claude/settings.json · .codex/rules/*.rules</text>
+  </g>
+  <rect x="0.5" y="0.5" width="1199" height="679" rx="19.5" fill="none" stroke="#24324a"/>
+</svg>

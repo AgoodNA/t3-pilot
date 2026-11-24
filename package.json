@@ -12,14 +12,23 @@
     "node": ">=22.5.0"
   },
   "scripts": {
-    "build": "npm run build --workspace @t3-pilot/core && npm run build --workspace t3-pilot && npm run build --workspace @t3-pilot/cockpit",
+    "build": "npm run build --workspace @t3-pilot/core && npm run build --workspace @t3-pilot/cockpit && npm run build --workspace t3-pilot",
     "typecheck": "npm run typecheck --workspace @t3-pilot/core && npm run typecheck --workspace t3-pilot && npm run typecheck --workspace @t3-pilot/cockpit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
+    "esbuild": "^0.25.0",
     "typescript": "^5.8.2",
     "vitest": "^3.0.8"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AgoodNA/t3-pilot.git"
+  },
+  "homepage": "https://agoodna.github.io/t3-pilot/?demo=1",
+  "bugs": {
+    "url": "https://github.com/AgoodNA/t3-pilot/issues"
   }
 }

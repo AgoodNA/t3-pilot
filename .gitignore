@@ -1,5 +1,9 @@
 node_modules/
 dist/
+cockpit-dist/
+packages/daemon/README.md
+packages/daemon/LICENSE
+*.tgz
 coverage/
 *.tsbuildinfo
 .DS_Store

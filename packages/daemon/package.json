@@ -1,8 +1,18 @@
 {
   "name": "t3-pilot",
   "version": "0.1.0",
-  "description": "Smart AI quota governor, 20% emergency reserve shield, coupled 7d x 5h Sparkle harvester, and cross-harness Skills/MCP sync for T3 Code",
+  "description": "Turn expiring AI quota into morning surprises — 7d x 5h coupled Sparkle harvester, Guarded Turbo safety shield, 20% emergency reserve router, and Visual Cockpit for T3 Code",
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "files": [
+    "dist",
+    "cockpit-dist",
+    "README.md",
+    "LICENSE"
+  ],
   "bin": {
     "t3-pilot": "./dist/cli.js"
   },
@@ -15,12 +25,34 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node ./scripts/bundle.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.0",
-    "@t3-pilot/core": "*",
     "zod": "^3.24.2"
-  }
+  },
+  "devDependencies": {
+    "@t3-pilot/core": "*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AgoodNA/t3-pilot.git"
+  },
+  "homepage": "https://agoodna.github.io/t3-pilot/?demo=1",
+  "bugs": {
+    "url": "https://github.com/AgoodNA/t3-pilot/issues"
+  },
+  "keywords": [
+    "t3code",
+    "t3-code",
+    "ai-agents",
+    "mcp",
+    "claude-code",
+    "codex",
+    "antigravity",
+    "quota",
+    "autopilot",
+    "guardrails"
+  ]
 }
