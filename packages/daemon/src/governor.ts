@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, rmSync, watch, writeFileSync, type FSWatcher } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, realpathSync, rmSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import {
@@ -116,6 +116,7 @@ export class PilotGovernor {
   private deadline?: { runId: string; timer: ReturnType<typeof setTimeout> };
   private safetyTimer?: ReturnType<typeof setTimeout>;
   private watchers: FSWatcher[] = [];
+  private watchedFiles = new Set<string>();
   private stopRequest?: { runId: string; intent: StopIntent; promise?: Promise<void> };
 
   constructor(private readonly options: PilotGovernorOptions) {
@@ -422,20 +423,59 @@ export class PilotGovernor {
     this.enabled = true;
     this.armDeadline(activeRun);
     const filename = basename(this.paths.sqlitePath);
-    this.watchInputs(dirname(this.paths.sqlitePath), (changed) => [filename, `${filename}-wal`, `${filename}-journal`].includes(changed));
+    const sqliteNames = new Set([filename, `${filename}-wal`, `${filename}-journal`]);
+    this.watchInputs(dirname(this.paths.sqlitePath), (changed) => {
+      const matched = sqliteNames.has(changed);
+      if (matched) this.watchSqliteFiles();
+      return matched;
+    });
+    this.watchSqliteFiles();
     this.watchInputs(join(this.paths.t3Home, "caches"), (changed) => changed.endsWith(".json"));
     this.schedule(0);
+  }
+
+  private triggerSafetyCheck(): void {
+    if (!this.enabled || this.safetyTimer) return;
+    this.safetyTimer = setTimeout(() => {
+      this.safetyTimer = undefined;
+      this.checkOnInputChange();
+    }, 25);
+  }
+
+  private watchSqliteFiles(): void {
+    for (const target of [this.paths.sqlitePath, `${this.paths.sqlitePath}-wal`]) {
+      if (!existsSync(target)) continue;
+      let resolved: string;
+      try {
+        resolved = realpathSync(target);
+      } catch {
+        continue;
+      }
+      if (this.watchedFiles.has(resolved)) continue;
+      try {
+        const watcher = watch(resolved, (event) => {
+          if (event === "rename") this.watchedFiles.delete(resolved);
+          this.triggerSafetyCheck();
+        });
+        watcher.on("error", (error) => {
+          this.watchedFiles.delete(resolved);
+          this.options.onError?.(error);
+        });
+        this.watchedFiles.add(resolved);
+        this.watchers.push(watcher);
+      } catch (error) {
+        this.options.onError?.(error);
+      }
+    }
   }
 
   private watchInputs(path: string, matches: (filename: string) => boolean): void {
     if (!existsSync(path)) return;
     try {
-      const watcher = watch(path, (_event, changed) => {
-        if (!this.enabled || this.safetyTimer || (changed && !matches(changed))) return;
-        this.safetyTimer = setTimeout(() => {
-          this.safetyTimer = undefined;
-          this.checkOnInputChange();
-        }, 25);
+      const resolved = realpathSync(path);
+      const watcher = watch(resolved, (_event, changed) => {
+        if (!this.enabled || (changed && !matches(changed))) return;
+        this.triggerSafetyCheck();
       });
       watcher.on("error", (error) => this.options.onError?.(error));
       this.watchers.push(watcher);
@@ -537,6 +577,7 @@ export class PilotGovernor {
     this.safetyTimer = undefined;
     for (const watcher of this.watchers) watcher.close();
     this.watchers = [];
+    this.watchedFiles.clear();
   }
 
   async stop(): Promise<void> {
