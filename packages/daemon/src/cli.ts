@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import type { SyncHarnessTarget } from "@t3-pilot/core";
+import { formatHookDecisionOutput, parseHookStdinPayload, type SyncHarnessTarget } from "@t3-pilot/core";
 import { runPilotMcpStdioServer } from "./mcp-server.js";
 import { PilotService } from "./service.js";
 import { startPilotStatusServer } from "./status-http.js";
@@ -11,6 +12,7 @@ import type { PilotSyncActionOutput, SparkleExecutionMode } from "./types.js";
 
 export interface PilotCliIO {
   cwd?: string;
+  stdin?: AsyncIterable<string | Uint8Array>;
   stdout?: { write(text: string): unknown };
   stderr?: { write(text: string): unknown };
 }
@@ -24,6 +26,11 @@ const help = `Usage: t3-pilot <command> [options]
   sparkle list [--json]
   sparkle add <title...> [--mode worktree|scratch] [--prompt <text>] [--json]
   sparkle run-once [--dry-run] [--json]
+  shield status [--json]
+  shield mode <guarded-turbo|strict|off> [--json]
+  shield toggle <ruleId> [--enable | --disable] [--decision allow|deny|force_ask] [--json]
+  shield check [--tool <name>] [--command <cmd>] [--path <file>] [--json]
+  shield evaluate [--harness antigravity|claude-code|generic]
   sync [--diff | --apply | --rollback [snapshotId]] [--targets a,b] [--json]
   mcp
   --help, -h
@@ -153,8 +160,10 @@ export async function runCli(argv: string[], io: PilotCliIO = {}): Promise<numbe
           break;
         }
         const governor = service.createGovernor({ dryRun: values["dry-run"], onError });
+        const cockpitDist = resolve(workspaceRoot, "apps/cockpit/dist");
         const status = await startPilotStatusServer({
-          port, host: values.host, allowRemote: values["allow-remote"], getStatus: () => service.getStatus(),
+          port, host: values.host, allowRemote: values["allow-remote"], service,
+          staticDir: existsSync(resolve(cockpitDist, "index.html")) ? cockpitDist : undefined,
         });
         const signal = shutdownSignal();
         try {
@@ -188,6 +197,63 @@ export async function runCli(argv: string[], io: PilotCliIO = {}): Promise<numbe
           await runOnce(values["dry-run"], values.json);
         } else {
           throw new Error("Expected sparkle list, add, or run-once.");
+        }
+        break;
+      }
+      case "shield": {
+        const [subcommand, ...shieldArgs] = args;
+        if (subcommand === "status") {
+          const { values } = parseArgs({ args: shieldArgs, options: jsonOptions });
+          const policy = service.getShieldPolicy();
+          print(values.json, policy, [
+            `Guarded Turbo mode · ${policy.mode}`,
+            ...policy.rules.map((rule) => `${rule.id} · ${rule.enabled ? rule.decision : "disabled"}`),
+          ].join("\n"));
+        } else if (subcommand === "mode") {
+          const { values, positionals } = parseArgs({ args: shieldArgs, options: jsonOptions, allowPositionals: true });
+          const [mode] = positionals;
+          if (positionals.length !== 1 || (mode !== "guarded-turbo" && mode !== "strict" && mode !== "off")) {
+            throw new Error("Shield mode must be guarded-turbo, strict, or off.");
+          }
+          const policy = service.setShieldMode(mode);
+          print(values.json, policy, `Guarded Turbo mode · ${policy.mode}`);
+        } else if (subcommand === "toggle") {
+          const { values, positionals } = parseArgs({
+            args: shieldArgs, options: { ...jsonOptions, enable: boolean, disable: boolean, decision: string },
+            allowPositionals: true,
+          });
+          const [ruleId] = positionals;
+          if (!ruleId || positionals.length !== 1) throw new Error("Provide one Guarded Turbo rule ID.");
+          if (values.enable && values.disable) throw new Error("Choose one of --enable or --disable.");
+          const { decision } = values;
+          if (decision !== undefined && decision !== "allow" && decision !== "deny" && decision !== "force_ask") {
+            throw new Error("Shield decision must be allow, deny, or force_ask.");
+          }
+          if (!values.enable && !values.disable && !decision) throw new Error("Specify --enable, --disable, or --decision.");
+          const policy = service.updateShieldRule(ruleId, {
+            enabled: values.enable ? true : values.disable ? false : undefined, decision,
+          });
+          const rule = policy.rules.find((entry) => entry.id === ruleId)!;
+          print(values.json, policy, `${ruleId} · ${rule.enabled ? rule.decision : "disabled"}`);
+        } else if (subcommand === "check") {
+          const { values } = parseArgs({ args: shieldArgs, options: { ...jsonOptions, tool: string, command: string, path: string } });
+          const { tool, command, path } = values;
+          if (!tool && !command && !path) throw new Error("Provide --tool, --command, or --path to check.");
+          const result = service.checkShield({ toolName: tool ?? (command ? "run_command" : "read_file"), command, filePath: path, cwd: workspaceRoot });
+          print(values.json, result, `${result.decision} · ${result.reason}`);
+        } else if (subcommand === "evaluate") {
+          const { values } = parseArgs({ args: shieldArgs, options: { harness: string } });
+          const { harness } = values;
+          if (harness !== undefined && harness !== "antigravity" && harness !== "claude-code" && harness !== "generic") {
+            throw new Error("Hook harness must be antigravity, claude-code, or generic.");
+          }
+          const chunks: Buffer[] = [];
+          for await (const chunk of io.stdin ?? process.stdin) chunks.push(Buffer.from(chunk));
+          const input = parseHookStdinPayload(Buffer.concat(chunks).toString("utf8"), harness);
+          const result = service.checkShield(input);
+          print(true, formatHookDecisionOutput(result, input.harness ?? "generic"), "");
+        } else {
+          throw new Error("Expected shield status, mode, toggle, check, or evaluate.");
         }
         break;
       }

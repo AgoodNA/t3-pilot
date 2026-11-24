@@ -5,6 +5,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import {
+  createDefaultShieldPolicy, isGeneratedGuardedTurboSkill, renderCodexRulesFile, renderCodexShieldSummary, renderGuardedTurboSkillMarkdown,
+  renderStandaloneHookScript, shieldPolicyPath,
+} from "./shield-policy.js";
 import { unifiedDiff } from "./sync-diff.js";
 import { mergeJsonMcp, readCanonicalMcp, renderCodexMcp, type JsonHarness } from "./sync-mcp.js";
 import type { SyncHarnessTarget, SyncOptions, SyncPlanResult, SyncRollbackResult } from "./types.js";
@@ -34,6 +38,53 @@ type BackupManifest = {
   rolledBack?: boolean;
 };
 type ManagedServers = Partial<Record<JsonHarness, string[]>>;
+const shieldHookPath = ".t3-pilot/hooks/guarded-turbo-hook.mjs";
+
+function jsonObject(value: unknown, path: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`Expected a JSON object in ${path}.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function mergeShieldHook(path: string, before: string | undefined, harness: JsonHarness, enabled: boolean): string | undefined {
+  const settings = before === undefined ? {} : jsonObject(JSON.parse(before), path);
+  const original = JSON.stringify(settings);
+
+  if (harness === "antigravity") {
+    settings["t3-pilot-guarded-turbo"] = {
+      enabled,
+      PreToolUse: [{
+        matcher: "*",
+        hooks: [{ type: "command", command: `node ../${shieldHookPath} --harness antigravity`, timeout: 10 }],
+      }],
+    };
+  } else {
+    const hooks = settings.hooks === undefined ? {} : jsonObject(settings.hooks, path);
+    const groups = hooks.PreToolUse ?? [];
+    if (!Array.isArray(groups)) throw new Error(`Expected a PreToolUse hook array in ${path}.`);
+    const updated = groups.flatMap((group: unknown) => {
+      const entry = jsonObject(group, path);
+      if (!Array.isArray(entry.hooks)) return [entry];
+      const remaining = entry.hooks.filter((hook: unknown) => {
+        const definition = jsonObject(hook, path);
+        return typeof definition.command !== "string" || !definition.command.includes(shieldHookPath);
+      });
+      if (remaining.length === entry.hooks.length) return [entry];
+      return remaining.length ? [{ ...entry, hooks: remaining }] : [];
+    });
+    if (enabled) {
+      updated.push({
+        matcher: ".*",
+        hooks: [{ type: "command", command: `node "\$CLAUDE_PROJECT_DIR/${shieldHookPath}" --harness claude-code` }],
+      });
+    }
+    if (updated.length || (Array.isArray(hooks.PreToolUse) && hooks.PreToolUse.length === 0)) hooks.PreToolUse = updated;
+    else delete hooks.PreToolUse;
+    if (Object.keys(hooks).length || settings.hooks !== undefined) settings.hooks = hooks;
+  }
+  return JSON.stringify(settings) === original ? before : `${JSON.stringify(settings, null, 2)}\n`;
+}
 
 function stat(path: string) {
   try {
@@ -150,6 +201,8 @@ function compileSync(options: SyncOptions): { result: SyncPlanResult; staged: St
   const sourceMcp = ".t3-pilot/mcp.json";
   const mcpSourceFile = fileAt(workspace, sourceMcp);
   const servers = readCanonicalMcp(mcpSourceFile?.data.toString("utf8") ?? null);
+  const shieldSource = fileAt(workspace, shieldPolicyPath);
+  const policy = shieldSource && targets.length ? createDefaultShieldPolicy(JSON.parse(shieldSource.data.toString("utf8"))) : null;
   const result: SyncPlanResult = {
     sourceSkillsDir: join(workspace, skillsPath),
     sourceMcpPath: join(workspace, sourceMcp),
@@ -159,9 +212,10 @@ function compileSync(options: SyncOptions): { result: SyncPlanResult; staged: St
     applied: false,
   };
   const staged: StagedFile[] = [];
-  function stage(harness: SyncHarnessTarget, path: string, data: Buffer, mode = 0o644) {
+  function stage(harness: SyncHarnessTarget, path: string, data: Buffer, mode = 0o644, enforceMode = false) {
     const before = fileAt(targetRoot, path);
-    const action = before === null ? "create" : before.data.equals(data) ? "unchanged" : "update";
+    const afterMode = enforceMode ? mode : before?.mode ?? mode;
+    const action = before === null ? "create" : before.data.equals(data) && before.mode === afterMode ? "unchanged" : "update";
     const targetPath = safePath(targetRoot, path);
     result.changes.push({
       harness, targetPath, action,
@@ -169,7 +223,7 @@ function compileSync(options: SyncOptions): { result: SyncPlanResult; staged: St
       afterContent: data.toString("utf8"),
       unifiedDiff: action === "unchanged" ? "" : unifiedDiff(path.split(sep).join("/"), before?.data ?? null, data),
     });
-    if (action !== "unchanged") staged.push({ path, before, after: { data, mode: before?.mode ?? mode } });
+    if (action !== "unchanged") staged.push({ path, before, after: { data, mode: afterMode } });
   }
 
   for (const name of entriesAt(workspace, skillsPath)) {
@@ -177,17 +231,47 @@ function compileSync(options: SyncOptions): { result: SyncPlanResult; staged: St
     if (!stat(safePath(workspace, source))?.isDirectory()) continue;
     const skill = fileAt(workspace, join(source, "SKILL.md"));
     if (!skill) continue;
+    const skillData = policy && name === "guarded-turbo" && isGeneratedGuardedTurboSkill(skill.data.toString("utf8"))
+      ? Buffer.from(renderGuardedTurboSkillMarkdown(policy)) : skill.data;
     result.discoveredSkills.push(name);
     const support = supportDirectories.flatMap((directory) => collectFiles(workspace, join(source, directory)))
       .map((path) => ({ path: relative(source, path), file: fileAt(workspace, path)! }));
     const openAi = targets.includes("codex") ? fileAt(workspace, join(source, "agents/openai.yaml")) : null;
     for (const harness of targets) {
       const destination = join(skillRoots[harness], name);
-      stage(harness, join(destination, "SKILL.md"), skill.data, skill.mode);
+      stage(harness, join(destination, "SKILL.md"), skillData, skill.mode);
       for (const { path, file } of support) stage(harness, join(destination, path), file.data, file.mode);
       if (harness === "codex") {
         stage(harness, join(destination, "agents/openai.yaml"),
-          openAi?.data ?? generateOpenAiYaml(name, skill.data), openAi?.mode);
+          openAi?.data ?? generateOpenAiYaml(name, skillData), openAi?.mode);
+      }
+    }
+  }
+
+  if (shieldSource && policy && targets[0]) {
+    if (targetRoot !== workspace) stage(targets[0], shieldPolicyPath, shieldSource.data, 0o600, true);
+    stage(targets[0], shieldHookPath, Buffer.from(renderStandaloneHookScript()), 0o755, true);
+    const generateSkill = !result.discoveredSkills.includes("guarded-turbo");
+    const skill = generateSkill ? Buffer.from(renderGuardedTurboSkillMarkdown(policy)) : null;
+    if (skill) {
+      result.discoveredSkills.push("guarded-turbo");
+      result.discoveredSkills.sort();
+    }
+    for (const harness of targets) {
+      if (skill) {
+        const destination = join(skillRoots[harness], "guarded-turbo");
+        stage(harness, join(destination, "SKILL.md"), skill);
+        if (harness === "codex") {
+          stage(harness, join(destination, "agents/openai.yaml"), generateOpenAiYaml("guarded-turbo", skill));
+        }
+      }
+      if (harness === "codex") {
+        stage(harness, ".codex/rules/t3-pilot-guarded-turbo.rules", Buffer.from(renderCodexRulesFile(policy)));
+        stage(harness, ".codex/GUARDED_TURBO.md", Buffer.from(renderCodexShieldSummary(policy)));
+      } else {
+        const path = harness === "antigravity" ? ".agents/hooks.json" : ".claude/settings.json";
+        const content = mergeShieldHook(path, fileAt(targetRoot, path)?.data.toString("utf8"), harness, policy.mode !== "off");
+        if (content !== undefined) stage(harness, path, Buffer.from(content));
       }
     }
   }

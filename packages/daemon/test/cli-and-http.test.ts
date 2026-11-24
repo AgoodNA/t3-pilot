@@ -1,12 +1,13 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { Readable } from "node:stream";
+import { loadNodeSqlite } from "@t3-pilot/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runCli } from "../src/cli.js";
 import { PilotService } from "../src/service.js";
 import { loadRuntimeState } from "../src/sparkle-queue.js";
 import { startPilotStatusServer } from "../src/status-http.js";
 import { installPilotProjectScript, loadPilotConfig } from "../src/t3-installer.js";
-import { DatabaseSync } from "node:sqlite";
 import { createQuotaHome, tempWorkspace } from "./fixtures.js";
 
 let root: string;
@@ -22,14 +23,16 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-async function invoke(...args: string[]) {
+async function invokeWithInput(args: string[], input = "") {
   let stdout = "";
   let stderr = "";
-  const code = await runCli(args, { cwd: root,
+  const code = await runCli(args, { cwd: root, stdin: Readable.from([input]),
     stdout: { write: (value) => { stdout += value; } }, stderr: { write: (value) => { stderr += value; } },
   });
   return { code, stdout, stderr };
 }
+
+const invoke = (...args: string[]) => invokeWithInput(args);
 
 async function json(...args: string[]) {
   const result = await invoke(...args, "--json");
@@ -52,6 +55,8 @@ describe("t3-pilot CLI", () => {
     expect(result).toMatchObject({ workspaceRoot: root, createdFiles: expect.arrayContaining([join(root, "SPARKLES.md")]),
       preservedFiles: [], pilotScript: { id: "pilot-cockpit", name: "Pilot", previewUrl: "http://127.0.0.1:4900" },
     });
+    expect(result.createdFiles).toContain(join(root, ".t3-pilot/shield.json"));
+    expect(readFileSync(join(root, ".t3-pilot/skills/guarded-turbo/SKILL.md"), "utf8")).toContain("name: guarded-turbo");
     expect(loadPilotConfig(root)).toMatchObject({ projectId: "t3-project", cockpitPort: 4900, baseBranch: "trunk" });
     const queuePath = join(root, "SPARKLES.md");
     writeFileSync(queuePath, "# Personal notes\n");
@@ -65,7 +70,9 @@ describe("t3-pilot CLI", () => {
   it("reads status, routes, adds and lists Sparkles, and simulates both one-shot commands", async () => {
     await json("init");
     const status = await json("status");
-    expect(status).toMatchObject({ workspaceRoot: root, pools: [{ poolId: "codex" }], pacing: [{ harvestMode: "FULL_THROTTLE_HARVEST" }] });
+    expect(status).toMatchObject({ workspaceRoot: root, pools: [{ poolId: "codex" }], pacing: [{ harvestMode: "FULL_THROTTLE_HARVEST" }],
+      shield: { mode: "guarded-turbo", rules: expect.any(Array) },
+    });
     expect(await json("route", "Debug", "parser", "tests", "--manual-override")).toMatchObject({
       task: "Debug parser tests", manualOverride: true, selected: { candidate: { id: "gpt-6.2-sol" } },
     });
@@ -105,9 +112,89 @@ describe("t3-pilot CLI", () => {
     expect(result.code).toBe(1);
     expect(existsSync(join(root, ".codex", "config.toml"))).toBe(false);
   });
+
+  it("reports, updates, and checks the shield policy and evaluates a hook payload on stdin", async () => {
+    await json("init");
+    expect(await json("shield", "status")).toMatchObject({ mode: "guarded-turbo", rules: expect.any(Array) });
+    expect(await json("shield", "mode", "strict")).toMatchObject({ mode: "strict" });
+    expect(await json("shield", "check", "--command", "touch local")).toMatchObject({ decision: "force_ask", matchedRuleId: null });
+    expect(await json("shield", "toggle", "deny-destructive-delete", "--disable")).toMatchObject({
+      rules: expect.arrayContaining([expect.objectContaining({ id: "deny-destructive-delete", enabled: false })]),
+    });
+    expect(await json("shield", "check", "--tool", "Bash", "--command", "rm -rf /")).toMatchObject({ decision: "force_ask", matchedRuleId: null });
+    expect(await json("shield", "toggle", "deny-destructive-delete", "--enable", "--decision", "deny")).toMatchObject({
+      rules: expect.arrayContaining([expect.objectContaining({ id: "deny-destructive-delete", enabled: true, decision: "deny" })]),
+    });
+    expect(await json("shield", "check", "--tool", "Read", "--path", "~/.ssh/id_rsa")).toMatchObject({ decision: "deny" });
+    const evaluated = await invokeWithInput(["shield", "evaluate", "--harness", "claude-code"],
+      JSON.stringify({ tool_name: "Bash", tool_input: { command: "npm publish" } }));
+    expect(evaluated).toMatchObject({ code: 0, stderr: "" });
+    expect(JSON.parse(evaluated.stdout)).toMatchObject({
+      hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: expect.any(String) },
+    });
+    expect(await invoke("shield", "toggle", "missing", "--disable")).toMatchObject({ code: 1, stderr: expect.stringContaining("Unknown") });
+    expect(await invoke("shield", "toggle", "deny-host-credentials", "--enable", "--disable")).toMatchObject({ code: 1 });
+    expect(await invoke("shield", "mode", "invalid")).toMatchObject({ code: 1 });
+  });
 });
 
 describe("Pilot status HTTP", () => {
+  it("validates and handles Cockpit actions and serves a built Cockpit with assets", async () => {
+    await json("init");
+    const service = new PilotService({ workspaceRoot: root });
+    const staticDir = join(root, "apps/cockpit/dist");
+    mkdirSync(join(staticDir, "assets"), { recursive: true });
+    writeFileSync(join(staticDir, "index.html"), '<div id="cockpit"></div>');
+    writeFileSync(join(staticDir, "assets", "main.js"), "export const cockpit = true;");
+    symlinkSync(join(root, ".t3-pilot/shield.json"), join(staticDir, "assets", "private.json"));
+    const running = await startPilotStatusServer({ port: 0, service, staticDir });
+    const post = (path: string, body: unknown, headers: Record<string, string> = {}) => fetch(`${running.url}/api/${path}`, {
+      method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body),
+    });
+    const action = async (path: string, body: unknown) => {
+      const response = await post(path, body, { origin: running.url });
+      expect(response.status).toBe(200);
+      return response.json();
+    };
+    try {
+      expect(await (await fetch(running.url)).text()).toContain('<div id="cockpit">');
+      const asset = await fetch(`${running.url}/assets/main.js`);
+      expect(asset.headers.get("content-type")).toContain("text/javascript");
+      expect(await asset.text()).toBe("export const cockpit = true;");
+      expect((await fetch(`${running.url}/assets/private.json`)).status).toBe(404);
+      expect((await fetch(`${running.url}/api/shield`)).status).toBe(405);
+      expect(await action("route", { task: "Debug parser tests" })).toMatchObject({ task: "Debug parser tests", manualOverride: false });
+      expect(await action("sparkle", { title: "Check Cockpit", mode: "scratch", prompt: "Try it out" })).toMatchObject({
+        added: { title: "Check Cockpit", mode: "scratch", prompt: "Try it out" },
+      });
+      expect(await action("shield", { mode: "strict", ruleId: "ask-package-publish", decision: "deny" })).toMatchObject({
+        shield: { mode: "strict", rules: expect.arrayContaining([expect.objectContaining({ id: "ask-package-publish", decision: "deny" })]) },
+      });
+      expect(await action("shield", { check: { toolName: "run_command", command: "npm publish" } })).toMatchObject({
+        shield: { mode: "strict" }, evaluation: { decision: "deny", matchedRuleId: "ask-package-publish" },
+      });
+      const invalid = await post("shield", { mode: "off", ruleId: "unknown", enabled: false });
+      expect(invalid.status).toBe(400);
+      expect((await post("shield", { mode: "off", check: { toolName: "Read" } })).status).toBe(400);
+      expect((await post("shield", { mode: "off" }, { origin: "https://example.test" })).status).toBe(403);
+      expect((await post("route", { task: "x".repeat(65_536) })).status).toBe(413);
+      expect((await post("route", { task: "" })).status).toBe(400);
+      expect((await post("route", { task: "test" }, { "content-type": "text/plain" })).status).toBe(415);
+      const malformed = await fetch(`${running.url}/api/sync`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: "{",
+      });
+      expect(malformed.status).toBe(400);
+      expect((await (await fetch(`${running.url}/api/status`)).json()).shield.mode).toBe("strict");
+      expect(await action("sync", { targets: ["codex"] })).toMatchObject({ mode: "plan", result: { applied: false } });
+      const applied = await action("sync", { dryRun: false, targets: ["codex"] });
+      expect(applied).toMatchObject({ mode: "apply", result: { applied: true, snapshotId: expect.any(String) } });
+      expect(await action("sync", { rollbackSnapshotId: applied.result.snapshotId })).toMatchObject({ mode: "rollback" });
+      expect(existsSync(join(root, ".codex", "rules", "t3-pilot-guarded-turbo.rules"))).toBe(false);
+    } finally {
+      await running.close();
+    }
+  });
+
   it("serves health, live service status, the HTML preview and a 404 on an ephemeral port", async () => {
     await json("init");
     const service = new PilotService({ workspaceRoot: root });
@@ -138,6 +225,7 @@ describe("Pilot status HTTP", () => {
 
   it("auto-discovers project in read-only statev2.sqlite and installs top-bar Pilot script via t3_project_update", async () => {
     const sqlitePath = join(home, "userdata", "statev2.sqlite");
+    const { DatabaseSync } = loadNodeSqlite();
     const db = new DatabaseSync(sqlitePath);
     db.exec("CREATE TABLE projection_projects (project_id TEXT PRIMARY KEY, title TEXT, workspace_root TEXT, scripts_json TEXT);");
     db.prepare("INSERT INTO projection_projects VALUES (?, ?, ?, ?)").run(

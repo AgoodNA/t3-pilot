@@ -255,6 +255,7 @@ export interface QuotaPoolOverride {
 
 export interface ReadQuotaOptions {
   t3Home?: string;
+  codexHome?: string;
   poolOverrides?: Partial<Record<QuotaPoolId, QuotaPoolOverride>>;
   includeCommunityStubs?: boolean;
 }
@@ -335,4 +336,52 @@ export interface SyncRollbackResult {
   snapshotId: string;
   restoredPaths: string[];
   removedPaths: string[];
+}
+
+export type ShieldMode = "guarded-turbo" | "strict" | "off";
+
+export type ShieldDecision = "allow" | "deny" | "force_ask";
+
+export type ShieldRuleCategory =
+  | "destructive-fs"
+  | "host-credentials"
+  | "git-history"
+  | "infra-containers-firewall"
+  | "package-publish"
+  | "repo-visibility";
+
+export interface ShieldRule {
+  id: string;
+  title: string;
+  description: string;
+  category: ShieldRuleCategory;
+  enabled: boolean;
+  decision: ShieldDecision;
+  commandPatterns?: string[];
+  pathPatterns?: string[];
+  codexPrefixPatterns?: string[][];
+}
+
+export interface ShieldPolicyConfig {
+  version: 1;
+  mode: ShieldMode;
+  protectedBranches: string[];
+  rules: ShieldRule[];
+}
+
+export interface ShieldToolCallInput {
+  harness?: SyncHarnessTarget | "generic";
+  toolName: string;
+  command?: string;
+  filePath?: string;
+  args?: Record<string, unknown>;
+  cwd?: string;
+}
+
+export interface ShieldEvaluationResult {
+  mode: ShieldMode;
+  decision: ShieldDecision;
+  matchedRuleId: string | null;
+  matchedRuleTitle: string | null;
+  reason: string;
 }

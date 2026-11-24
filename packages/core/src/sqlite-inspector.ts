@@ -1,13 +1,47 @@
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import { DatabaseSync, type SQLOutputValue } from "node:sqlite";
+import type { DatabaseSync as NodeDatabaseSync, SQLOutputValue } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import type {
   T3ProjectSnapshot, T3RunSnapshot, T3StateSnapshot, T3SubagentSnapshot, T3ThreadSnapshot,
 } from "./types.js";
 
 type Row = Record<string, SQLOutputValue>;
+type SqliteModule = typeof import("node:sqlite");
 
-export function openReadOnlyT3Database(dbPath: string): DatabaseSync {
+let sqliteModule: SqliteModule | undefined;
+let warningFilterInstalled = false;
+
+function installSqliteWarningFilter(): void {
+  if (warningFilterInstalled) return;
+  warningFilterInstalled = true;
+  const originalEmitWarning = process.emitWarning.bind(process);
+  process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
+    const message = typeof warning === "string" ? warning : warning?.message ?? "";
+    const firstArg = args[0];
+    const type = typeof firstArg === "string"
+      ? firstArg
+      : (firstArg !== null && typeof firstArg === "object" && "type" in firstArg
+        ? String((firstArg as { type?: unknown }).type ?? "")
+        : (typeof warning === "object" && warning !== null ? warning.name : ""));
+    if (type === "ExperimentalWarning" && /SQLite is an experimental feature/i.test(message)) {
+      return;
+    }
+    return (originalEmitWarning as (...params: unknown[]) => void)(warning, ...args);
+  }) as typeof process.emitWarning;
+}
+
+export function loadNodeSqlite(): SqliteModule {
+  if (!sqliteModule) {
+    installSqliteWarningFilter();
+    const require = createRequire(import.meta.url);
+    sqliteModule = require("node:sqlite") as SqliteModule;
+  }
+  return sqliteModule;
+}
+
+export function openReadOnlyT3Database(dbPath: string): NodeDatabaseSync {
+  const { DatabaseSync } = loadNodeSqlite();
   const uri = pathToFileURL(resolve(dbPath));
   uri.search = "mode=ro";
   const db = new DatabaseSync(uri.href, { readOnly: true });
@@ -20,7 +54,7 @@ export function openReadOnlyT3Database(dbPath: string): DatabaseSync {
   }
 }
 
-function select(db: DatabaseSync, table: string, columns: string[]): Row[] {
+function select(db: NodeDatabaseSync, table: string, columns: string[]): Row[] {
   // All table and column names are static identifiers declared by the inspector.
   const schema = db.prepare(`PRAGMA table_info(${table})`).all();
   if (schema.length === 0) return [];

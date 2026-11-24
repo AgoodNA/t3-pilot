@@ -76,8 +76,9 @@ function sessionJsonlFiles(roots: string[]): { path: string; mtime: number }[] {
       if (visitedEntries++ >= sessionEntryLimit) break;
       const child = join(path, entry.name);
       if (entry.isDirectory()) {
+        if (entry.name === ".tmp" || entry.name === "node_modules" || entry.name === ".git") continue;
         pending.push(child);
-      } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+      } else if (entry.isFile() && entry.name.endsWith(".jsonl") && entry.name !== "session_index.jsonl") {
         try {
           files.push({ path: child, mtime: statSync(child).mtimeMs });
         } catch (error) {
@@ -112,11 +113,39 @@ type SessionLimits = {
   checkedAt: string | undefined;
 };
 
-function readCodexSessionLimits(runtimePaths: JsonObject): SessionLimits | null {
-  const roots = [string(runtimePaths.homePath), string(runtimePaths.shadowHomePath)]
-    .filter((path) => path !== undefined)
-    .map((path) => join(path, "sessions"));
+function collectCodexSessionRoots(
+  t3Home: string,
+  codexHome: string | undefined,
+  allCodexCaches: JsonObject[],
+  primaryRuntimePaths: JsonObject,
+): string[] {
+  const baseDirs = new Set<string>();
+  const addBaseDir = (dir: string | undefined) => {
+    if (dir) baseDirs.add(dir);
+  };
 
+  for (const value of Object.values(primaryRuntimePaths)) addBaseDir(string(value));
+  for (const cache of allCodexCaches) {
+    for (const value of Object.values(object(cache.runtimePaths))) addBaseDir(string(value));
+  }
+  if (codexHome) addBaseDir(codexHome);
+
+  const providersCodexDir = join(t3Home, "userdata", "providers", "codex");
+  for (const entry of entries(providersCodexDir)) {
+    if (!entry.isDirectory()) continue;
+    const instanceDir = join(providersCodexDir, entry.name);
+    addBaseDir(instanceDir);
+    addBaseDir(join(instanceDir, "shadow"));
+  }
+
+  const sessionRoots: string[] = [];
+  for (const base of baseDirs) {
+    sessionRoots.push(join(base, "sessions"), join(base, "archived_sessions"));
+  }
+  return sessionRoots;
+}
+
+function readCodexSessionLimits(roots: string[]): SessionLimits | null {
   let latest: SessionLimits | null = null;
   let latestMs = -Infinity;
   for (const { path, mtime } of sessionJsonlFiles(roots)) {
@@ -177,6 +206,7 @@ function readPool(
   driver: ProviderDriverKind,
   fileInstanceId: string,
   options: ReadQuotaOptions,
+  codexSessionRoots: string[],
 ): QuotaPoolSnapshot {
   const usage = object(cache.usageLimits);
   const windows: JsonObject[] = Array.isArray(usage.windows) ? usage.windows.map(object) : [];
@@ -223,7 +253,7 @@ function readPool(
       };
     }
 
-    const sessionLimits = readCodexSessionLimits(object(cache.runtimePaths));
+    const sessionLimits = readCodexSessionLimits(codexSessionRoots);
     if (sessionLimits) {
       return {
         ...pool, ...sessionLimits,
@@ -241,7 +271,11 @@ function candidatePriority(pool: QuotaPoolSnapshot): number {
 }
 
 export function readQuotaPools(options: ReadQuotaOptions = {}): QuotaPoolSnapshot[] {
-  const directory = join(options.t3Home ?? (process.env.T3CODE_HOME || join(homedir(), ".t3")), "caches");
+  const effectiveT3Home = options.t3Home ?? (process.env.T3CODE_HOME || join(homedir(), ".t3"));
+  const effectiveCodexHome = options.codexHome
+    ?? process.env.CODEX_HOME
+    ?? (options.t3Home === undefined ? join(homedir(), ".codex") : undefined);
+  const directory = join(effectiveT3Home, "caches");
   const pools = new Map<QuotaPoolId, QuotaPoolSnapshot>();
   const add = (pool: QuotaPoolSnapshot) => {
     const previous = pools.get(pool.poolId);
@@ -252,29 +286,46 @@ export function readQuotaPools(options: ReadQuotaOptions = {}): QuotaPoolSnapsho
     }
   };
 
+  const cacheEntries: { instanceId: string; cache: JsonObject }[] = [];
   for (const entry of entries(directory)) {
     if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-    let cache: JsonObject;
     try {
-      cache = readJson(readFileSync(join(directory, entry.name), "utf8"));
+      const cache = readJson(readFileSync(join(directory, entry.name), "utf8"));
+      cacheEntries.push({ instanceId: basename(entry.name, ".json"), cache });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
       throw error;
     }
-    const instanceId = basename(entry.name, ".json");
+  }
+
+  const codexCaches = cacheEntries
+    .filter(({ instanceId, cache }) => cache.driver === "codex" || instanceId.startsWith("codex"))
+    .map(({ cache }) => cache);
+
+  for (const { instanceId, cache } of cacheEntries) {
     const driver = cache.driver;
     if (driver === "antigravity") {
       for (const id of ["antigravity-gemini", "antigravity-claude"] as const) {
-        const pool = readPool(cache, id, driver, instanceId, options);
+        const pool = readPool(cache, id, driver, instanceId, options, []);
         if (pool.source === "t3-cache-windows") add(pool);
       }
     } else if (driver === "codex") {
-      add(readPool(cache, "codex", driver, instanceId, options));
+      const roots = collectCodexSessionSessionRootsMemo(effectiveT3Home, effectiveCodexHome, codexCaches, object(cache.runtimePaths));
+      add(readPool(cache, "codex", driver, instanceId, options, roots));
     } else if (driver === "claudeAgent" || driver === "cursor") {
       if (options.includeCommunityStubs || (cache.enabled === true && cache.status === "ready")) {
-        add(readPool(cache, driver === "claudeAgent" ? "claude-agent" : driver, driver, instanceId, options));
+        add(readPool(cache, driver === "claudeAgent" ? "claude-agent" : driver, driver, instanceId, options, []));
       }
     }
   }
   return [...pools.values()].sort((a, b) => a.poolId.localeCompare(b.poolId));
+}
+
+function collectCodexSessionSessionRootsMemo(
+  t3Home: string,
+  codexHome: string | undefined,
+  codexCaches: JsonObject[],
+  runtimePaths: JsonObject,
+): string[] {
+  return collectCodexSessionRoots(t3Home, codexHome, codexCaches, runtimePaths);
 }

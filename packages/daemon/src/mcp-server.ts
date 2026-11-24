@@ -64,8 +64,25 @@ export function createPilotMcpServer(backend: PilotMcpBackend): McpServer {
   );
 
   server.tool(
+    "pilot_shield",
+    "Read the workspace Guarded Turbo policy or evaluate a proposed tool call.",
+    {
+      action: z.enum(["status", "check"]),
+      toolName: z.string().trim().min(1).optional(),
+      command: z.string().optional(),
+      filePath: z.string().optional(),
+    },
+    { readOnlyHint: true },
+    async ({ action, toolName, command, filePath }) => {
+      if (action === "status") return jsonResult(backend.getShieldPolicy());
+      if (!toolName && !command && !filePath) throw new Error("Provide a tool name, command, or file path to check.");
+      return jsonResult(backend.checkShield({ toolName: toolName ?? (command ? "run_command" : "read_file"), command, filePath }));
+    },
+  );
+
+  server.tool(
     "pilot_sync",
-    "Preview (dryRun), apply, or roll back 1-click cross-harness Skills & MCP synchronization across Antigravity, Codex, and Claude Code.",
+    "Preview (dryRun), apply, or roll back Skills, MCP and Guarded Turbo synchronization across Antigravity, Codex, and Claude Code.",
     {
       dryRun: z
         .boolean()

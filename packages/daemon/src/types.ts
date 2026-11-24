@@ -10,6 +10,9 @@ import type {
   QuotaPoolSnapshot,
   RouteDecision,
   ScoredModelRoute,
+  ShieldEvaluationResult,
+  ShieldPolicyConfig,
+  ShieldToolCallInput,
   SyncHarnessTarget,
   SyncPlanResult,
   SyncRollbackResult,
@@ -199,6 +202,7 @@ export interface PilotStatusSummary {
   humanPreemption: HumanPreemptionReport | null;
   sparkles: SparkleItem[];
   runtimeState: PilotRuntimeState;
+  shield: ShieldPolicyConfig;
 }
 
 export interface PilotSyncActionInput {
@@ -213,6 +217,8 @@ export type PilotSyncActionOutput =
 
 export interface PilotMcpBackend {
   getStatus(): Promise<PilotStatusSummary>;
+  getShieldPolicy(): ShieldPolicyConfig;
+  checkShield(input: ShieldToolCallInput): ShieldEvaluationResult;
   routeTask(task: string, manualOverride?: boolean): Promise<RouteDecision>;
   addSparkle(input: {
     title: string;

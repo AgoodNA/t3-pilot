@@ -1,15 +1,135 @@
+import { readFile, realpath, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { z } from "zod";
+import type { PilotService } from "./service.js";
 import type { PilotStatusSummary } from "./types.js";
 
 export interface PilotStatusServerOptions {
   host?: string;
   port?: number;
   allowRemote?: boolean;
-  getStatus: () => Promise<PilotStatusSummary> | PilotStatusSummary;
+  getStatus?: () => Promise<PilotStatusSummary> | PilotStatusSummary;
+  service?: Pick<PilotService, "getStatus" | "routeTask" | "addSparkle" | "getShieldPolicy" | "configureShield" | "checkShield" | "syncHarnesses">;
+  staticDir?: string;
 }
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "::ffff:127.0.0.1"]);
+const MAX_JSON_BYTES = 64 * 1024;
+const requiredText = z.string().trim().min(1);
+const routeInput = z.object({ task: requiredText }).strict();
+const sparkleInput = z.object({
+  title: requiredText.regex(/^[^\r\n]+$/, "A Sparkle title must be a single line."),
+  mode: z.enum(["worktree", "scratch"]).optional(),
+  prompt: z.string().optional(),
+}).strict();
+const syncInput = z.object({
+  dryRun: z.boolean().optional(),
+  targets: z.array(z.enum(["antigravity", "codex", "claude-code"])).optional(),
+  rollbackSnapshotId: z.union([requiredText, z.boolean()]).optional(),
+}).strict();
+const shieldInput = z.object({
+  mode: z.enum(["guarded-turbo", "strict", "off"]).optional(),
+  ruleId: requiredText.optional(),
+  enabled: z.boolean().optional(),
+  decision: z.enum(["allow", "deny", "force_ask"]).optional(),
+  check: z.object({
+    harness: z.enum(["antigravity", "codex", "claude-code", "generic"]).optional(),
+    toolName: requiredText,
+    command: z.string().optional(),
+    filePath: z.string().optional(),
+    args: z.record(z.unknown()).optional(),
+    cwd: z.string().optional(),
+  }).strict().optional(),
+}).strict().superRefine(({ mode, ruleId, enabled, decision, check }, ctx) => {
+  const changesRule = enabled !== undefined || decision !== undefined;
+  if (check && (mode !== undefined || ruleId !== undefined || changesRule)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A shield check must be a separate dry-run request." });
+  }
+  if (changesRule !== (ruleId !== undefined)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Provide a ruleId and either enabled or decision to update a rule." });
+  }
+});
+
+class HttpError extends Error {
+  constructor(readonly status: number, message: string) { super(message); }
+}
+
+function validated<T>(schema: z.ZodType<T>, body: unknown): T {
+  const result = schema.safeParse(body);
+  if (!result.success) throw new HttpError(400, result.error.issues.map((issue) => issue.message).join(" "));
+  return result.data;
+}
+
+function respondJson(res: ServerResponse, status: number, payload: unknown) {
+  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+  res.end(`${JSON.stringify(payload)}\n`);
+}
+
+async function readJson(req: IncomingMessage): Promise<unknown> {
+  if (req.headers["content-type"]?.split(";")[0]?.trim().toLowerCase() !== "application/json") {
+    throw new HttpError(415, "Expected application/json.");
+  }
+  if (Number(req.headers["content-length"]) > MAX_JSON_BYTES) throw new HttpError(413, "JSON body exceeds 64 KB.");
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+    const bytes = Buffer.from(chunk);
+    size += bytes.length;
+    if (size > MAX_JSON_BYTES) throw new HttpError(413, "JSON body exceeds 64 KB.");
+    chunks.push(bytes);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+  } catch {
+    throw new HttpError(400, "Invalid JSON body.");
+  }
+}
+
+function assertLocalRequest(req: IncomingMessage) {
+  const host = URL.parse(`http://${req.headers.host ?? ""}`);
+  const isLocal = host && LOOPBACK_HOSTS.has(host.hostname.replace(/^\[|\]$/g, ""));
+  const isLocalSocket = LOOPBACK_HOSTS.has(req.socket.remoteAddress ?? "");
+  const origin = req.headers.origin;
+  if (!isLocal || !isLocalSocket || (origin && origin !== host.origin && origin !== `https://${host.host}`)) {
+    throw new HttpError(403, "Cockpit actions require a local, same-origin request.");
+  }
+}
+
+const staticContentTypes: Record<string, string> = {
+  ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8", ".map": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
+  ".gif": "image/gif", ".avif": "image/avif", ".ico": "image/x-icon", ".woff": "font/woff", ".woff2": "font/woff2",
+};
+
+async function serveStatic(root: string, pathname: string, req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  let local: string;
+  try {
+    local = decodeURIComponent(pathname).slice(1);
+  } catch {
+    throw new HttpError(400, "Invalid static asset path.");
+  }
+  if (local.includes("\\") || local.includes("\0") || local.split("/").some((part) => part.startsWith("."))) return false;
+  try {
+    const file = await realpath(resolve(root, local || "index.html"));
+    const path = relative(root, file);
+    if (path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path) || !(await stat(file)).isFile()) return false;
+    const bytes = await readFile(file);
+    res.writeHead(200, {
+      "content-type": staticContentTypes[extname(file)] ?? "application/octet-stream",
+      "content-length": bytes.length,
+      "cache-control": "no-cache",
+      "x-content-type-options": "nosniff",
+    });
+    res.end(req.method === "HEAD" ? undefined : bytes);
+    return true;
+  } catch (error) {
+    if (["ENOENT", "ENOTDIR"].includes((error as NodeJS.ErrnoException).code ?? "")) return false;
+    throw error;
+  }
+}
 
 export interface RunningPilotStatusServer {
   server: Server;
@@ -107,26 +227,52 @@ export async function startPilotStatusServer(
     throw new Error(`Refusing to bind status server to non-loopback host "${host}" without --allow-remote.`);
   }
   const requestedPort = options.port ?? 4733;
+  const { service } = options;
+  const getStatus = options.getStatus ?? (() => service!.getStatus());
+  if (!options.getStatus && !service) throw new Error("A Cockpit status provider is required.");
+  const staticDir = options.staticDir ? await realpath(options.staticDir) : undefined;
 
   const handler = async (req: IncomingMessage, res: ServerResponse) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
-      if (url.pathname === "/healthz") {
-        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ ok: true }));
+      const { pathname } = url;
+      const isRead = req.method === "GET" || req.method === "HEAD";
+      if (isRead && pathname === "/healthz") {
+        respondJson(res, 200, { ok: true });
         return;
       }
-      if (url.pathname === "/api/status") {
-        const status = await options.getStatus();
-        res.writeHead(200, {
-          "content-type": "application/json; charset=utf-8",
-          "cache-control": "no-store",
-        });
-        res.end(`${JSON.stringify(status, null, 2)}\n`);
+      if (isRead && pathname === "/api/status") {
+        respondJson(res, 200, await getStatus());
         return;
       }
-      if (url.pathname === "/") {
-        const status = await options.getStatus();
+      if (service && ["/api/route", "/api/sparkle", "/api/shield", "/api/sync"].includes(pathname)) {
+        if (req.method !== "POST") {
+          res.setHeader("allow", "POST");
+          throw new HttpError(405, "Method not allowed.");
+        }
+        assertLocalRequest(req);
+        const body = await readJson(req);
+        if (pathname === "/api/route") {
+          const { task } = validated(routeInput, body);
+          respondJson(res, 200, await service.routeTask(task, false));
+        } else if (pathname === "/api/sparkle") {
+          respondJson(res, 200, await service.addSparkle(validated(sparkleInput, body)));
+        } else if (pathname === "/api/sync") {
+          respondJson(res, 200, await service.syncHarnesses(validated(syncInput, body)));
+        } else {
+          const { check, ...patch } = validated(shieldInput, body);
+          const policy = service.getShieldPolicy();
+          if (patch.ruleId && !policy.rules.some((rule) => rule.id === patch.ruleId)) {
+            throw new HttpError(400, `Unknown Guarded Turbo rule "${patch.ruleId}".`);
+          }
+          const shield = patch.mode !== undefined || patch.ruleId !== undefined ? service.configureShield(patch) : policy;
+          respondJson(res, 200, { shield, ...(check && { evaluation: service.checkShield(check) }) });
+        }
+        return;
+      }
+      if (isRead && staticDir && !pathname.startsWith("/api/") && await serveStatic(staticDir, pathname, req, res)) return;
+      if (isRead && pathname === "/" && !staticDir) {
+        const status = await getStatus();
         res.writeHead(200, {
           "content-type": "text/html; charset=utf-8",
           "cache-control": "no-store",
@@ -134,13 +280,12 @@ export async function startPilotStatusServer(
         res.end(renderStatusPreviewHtml(status));
         return;
       }
-      res.writeHead(404, { "content-type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ error: "Not found" }));
+      respondJson(res, 404, { error: "Not found" });
     } catch (error) {
-      res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({
+      if (!req.complete) req.resume();
+      respondJson(res, error instanceof HttpError ? error.status : 500, {
         error: error instanceof Error ? error.message : "Internal status server error",
-      }));
+      });
     }
   };
 

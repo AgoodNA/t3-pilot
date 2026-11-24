@@ -126,4 +126,44 @@ describe("readQuotaPools", () => {
     });
     expect(JSON.stringify(pools)).not.toMatch(/auth|credentialFingerprint|should-never-leak|@example\.com/);
   });
+
+  it("discovers Codex telemetry from ~/.codex/archived_sessions, sibling codex*.json runtimePaths, and userdata/providers/codex/*/", () => {
+    const codexHome = join(home, "default-codex-home");
+    const siblingShadow = join(home, "sibling-shadow");
+    const providerShadow = join(home, "userdata", "providers", "codex", "codex_provider_1", "shadow", "sessions");
+
+    mkdirSync(join(codexHome, "archived_sessions"), { recursive: true });
+    mkdirSync(join(siblingShadow, "sessions"), { recursive: true });
+    mkdirSync(providerShadow, { recursive: true });
+
+    writeFileSync(join(home, "caches", "codex_sibling.json"), JSON.stringify({
+      instanceId: "codex_sibling",
+      driver: "codex",
+      enabled: false,
+      status: "disabled",
+      runtimePaths: { shadowHomePath: siblingShadow },
+    }));
+
+    const mkEvent = (ts: string, used5h: number, usedWeek: number) => JSON.stringify({
+      timestamp: ts,
+      payload: {
+        rate_limits: {
+          primary: { used_percent: used5h, window_minutes: 300, resets_at: "2026-11-24T10:00:00.000Z" },
+          secondary: { used_percent: usedWeek, window_minutes: 10080, resets_at: "2026-11-30T10:00:00.000Z" },
+        },
+      },
+    });
+
+    writeFileSync(join(codexHome, "archived_sessions", "rollout-1.jsonl"), mkEvent("2026-11-24T01:00:00.000Z", 40, 50));
+    writeFileSync(join(siblingShadow, "sessions", "rollout-2.jsonl"), mkEvent("2026-11-24T02:00:00.000Z", 30, 45));
+    writeFileSync(join(providerShadow, "rollout-3.jsonl"), mkEvent("2026-11-24T03:00:00.000Z", 15, 25));
+
+    const codex = readQuotaPools({ t3Home: home, codexHome }).find(({ poolId }) => poolId === "codex");
+    expect(codex).toMatchObject({
+      source: "codex-session-jsonl",
+      checkedAt: "2026-11-24T03:00:00.000Z",
+      sessionWindow: { usedPercent: 15, remainingPercent: 85 },
+      weeklyWindow: { usedPercent: 25, remainingPercent: 75 },
+    });
+  });
 });

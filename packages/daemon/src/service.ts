@@ -1,5 +1,8 @@
 import { resolve } from "node:path";
-import { applySync, evaluateAllPools, evaluateHumanPreemptionFromSnapshot, planSync, rollbackSync, routeTask } from "@t3-pilot/core";
+import {
+  applySync, evaluateAllPools, evaluateHumanPreemptionFromSnapshot, evaluateShieldToolCall, loadShieldPolicy,
+  planSync, rollbackSync, routeTask, saveShieldPolicy, type ShieldDecision, type ShieldMode, type ShieldToolCallInput,
+} from "@t3-pilot/core";
 import { PilotGovernor, readPilotQuotaPools, readPilotSparkles, readPilotT3State, resolvePilotPaths, type PilotGovernorOptions } from "./governor.js";
 import { appendSparkleToMarkdown, GhCliSparkleIssueSource, loadRuntimeState, saveRuntimeState, type SparkleExternalSource, type SparkleInput } from "./sparkle-queue.js";
 import { CliT3ExecutionAdapter, DryRunT3ExecutionAdapter } from "./t3-adapter.js";
@@ -38,6 +41,7 @@ export class PilotService implements PilotMcpBackend {
         now, cooldownMinutes: this.config.cooldownMinutes, pilotThreadIds: runtimeState.pilotThreadIds,
       }),
       sparkles: readPilotSparkles(this.paths.sparklesPath, runtimeState, external), runtimeState,
+      shield: this.getShieldPolicy(),
     };
   }
 
@@ -52,6 +56,35 @@ export class PilotService implements PilotMcpBackend {
 
   async addSparkle(input: SparkleInput) {
     return appendSparkleToMarkdown(this.paths.sparklesPath, input);
+  }
+
+  getShieldPolicy() {
+    return loadShieldPolicy(this.workspaceRoot);
+  }
+
+  setShieldMode(mode: ShieldMode) {
+    return this.configureShield({ mode });
+  }
+
+  updateShieldRule(ruleId: string, patch: { enabled?: boolean; decision?: ShieldDecision }) {
+    return this.configureShield({ ruleId, ...patch });
+  }
+
+  configureShield(patch: { mode?: ShieldMode; ruleId?: string; enabled?: boolean; decision?: ShieldDecision }) {
+    const policy = this.getShieldPolicy();
+    if (patch.ruleId !== undefined) {
+      const rule = policy.rules.find((entry) => entry.id === patch.ruleId);
+      if (!rule) throw new Error(`Unknown Guarded Turbo rule "${patch.ruleId}".`);
+      if (patch.enabled !== undefined) rule.enabled = patch.enabled;
+      if (patch.decision !== undefined) rule.decision = patch.decision;
+    }
+    if (patch.mode !== undefined) policy.mode = patch.mode;
+    saveShieldPolicy(this.workspaceRoot, policy);
+    return policy;
+  }
+
+  checkShield(input: ShieldToolCallInput) {
+    return evaluateShieldToolCall(input, this.getShieldPolicy());
   }
 
   async syncHarnesses(input: PilotSyncActionInput): Promise<PilotSyncActionOutput> {

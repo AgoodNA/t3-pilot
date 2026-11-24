@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import type { QuotaPoolSnapshot } from "@t3-pilot/core";
+import { loadNodeSqlite, type QuotaPoolSnapshot } from "@t3-pilot/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PilotGovernor } from "../src/governor.js";
 import { loadRuntimeState, readSparklesQueue } from "../src/sparkle-queue.js";
@@ -10,10 +9,11 @@ import { createDefaultPilotConfig } from "../src/t3-installer.js";
 import type { PilotConfig, SparkleItem } from "../src/types.js";
 import { at, baseTime, codexPool, hour, minute, tempWorkspace, window } from "./fixtures.js";
 
+const { DatabaseSync } = loadNodeSqlite();
 let root: string;
 let sparklesPath: string;
 let sqlitePath: string;
-let db: DatabaseSync | undefined;
+let db: InstanceType<typeof DatabaseSync> | undefined;
 let pools: QuotaPoolSnapshot[];
 let adapter: DryRunT3ExecutionAdapter;
 
@@ -40,7 +40,7 @@ function governor(config: Partial<PilotConfig> = {}, options: Partial<Constructo
   });
 }
 
-function openFixture(replaceJournal = false): DatabaseSync {
+function openFixture(replaceJournal = false): InstanceType<typeof DatabaseSync> {
   mkdirSync(dirname(sqlitePath), { recursive: true });
   db = new DatabaseSync(sqlitePath);
   if (replaceJournal) db.exec("PRAGMA journal_mode = WAL");

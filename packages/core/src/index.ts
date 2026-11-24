@@ -6,3 +6,4 @@ export * from "./task-router.js";
 export * from "./sqlite-inspector.js";
 export * from "./human-preemption.js";
 export * from "./sync-engine.js";
+export * from "./shield-policy.js";

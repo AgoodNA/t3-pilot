@@ -16,20 +16,30 @@ export function evaluatePoolPacing(
   const fullThrottleThreshold = finiteOr(config.fullThrottleRatioThreshold, 0.85);
   const expiringThresholdMs = finiteOr(config.expiringSessionThresholdMins, 45) * MINUTE_MS;
 
+  const nowMs = now.getTime();
   const weekly = pool.weeklyWindow;
   const session = pool.sessionWindow;
-  const weeklyRemaining = weekly?.remainingPercent ?? null;
-  const sessionRemaining = session?.remainingPercent ?? null;
-  const weeklySurplus = Math.max(0, (weeklyRemaining ?? 0) - floor);
-  const sessionSurplus = session ? Math.max(0, (sessionRemaining ?? 0) - floor) : weeklySurplus;
   const weeklyReset = parseTimestamp(weekly?.resetsAt);
   const sessionReset = parseTimestamp(session?.resetsAt);
+  const rawWeeklyDeltaMs = weeklyReset === null ? null : weeklyReset - nowMs;
+  const rawSessionDeltaMs = sessionReset === null ? null : sessionReset - nowMs;
+
+  // When a cached 5h rolling sessionWindow's resetsAt is already in the past (now >= sessionReset),
+  // that 5h window has completed its reset back to 100% remaining.
+  const sessionAlreadyReset = rawSessionDeltaMs !== null && rawSessionDeltaMs <= 0;
+
+  const weeklyRemaining = weekly?.remainingPercent ?? null;
+  const sessionRemaining = session === null ? null : (sessionAlreadyReset ? 100 : session.remainingPercent);
+  const weeklySurplus = Math.max(0, (weeklyRemaining ?? 0) - floor);
+  const sessionSurplus = session ? Math.max(0, (sessionRemaining ?? 0) - floor) : weeklySurplus;
+
   const pristineWeeklyCycle = weekly?.resetsAt == null && weekly?.usedPercent === 0;
   const durationMs = weekly ? weekly.windowDurationMins * MINUTE_MS : 0;
-  const timeToWeeklyResetMs = weeklyReset === null
+  const timeToWeeklyResetMs = rawWeeklyDeltaMs === null
     ? (pristineWeeklyCycle ? durationMs : null)
-    : Math.max(0, weeklyReset - now.getTime());
-  const timeToSessionResetMs = sessionReset === null ? null : Math.max(0, sessionReset - now.getTime());
+    : Math.max(0, rawWeeklyDeltaMs);
+  const timeToSessionResetMs = rawSessionDeltaMs === null || sessionAlreadyReset ? null : rawSessionDeltaMs;
+
   const remaining5hWindowsCount = timeToWeeklyResetMs === null
     ? null
     : Math.max(1, Math.ceil(timeToWeeklyResetMs / (300 * MINUTE_MS)));
@@ -46,9 +56,9 @@ export function evaluatePoolPacing(
     shieldReason = `Weekly quota is at or below the ${floor}% reserve floor.`;
   } else if (sessionRemaining !== null && sessionRemaining <= floor) {
     shieldReason = `Session quota is at or below the ${floor}% reserve floor.`;
-  } else if (weeklyReset !== null && weeklyReset - now.getTime() <= safetyMargin) {
+  } else if (rawWeeklyDeltaMs !== null && rawWeeklyDeltaMs > 0 && rawWeeklyDeltaMs <= safetyMargin) {
     shieldReason = "Weekly quota is inside the reset safety margin.";
-  } else if (timeToSessionResetMs !== null && timeToSessionResetMs <= safetyMargin) {
+  } else if (rawSessionDeltaMs !== null && rawSessionDeltaMs > 0 && rawSessionDeltaMs <= safetyMargin) {
     shieldReason = "Session quota is inside the reset safety margin.";
   } else if (config.lockUnknownPools && !weekly && !session) {
     shieldReason = "No quota windows are available for this pool.";

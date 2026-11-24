@@ -1,14 +1,15 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { loadNodeSqlite } from "@t3-pilot/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { detectHumanActivity, evaluateHumanPreemptionFromSnapshot } from "../src/human-preemption.js";
 import { inspectT3State, openReadOnlyT3Database } from "../src/sqlite-inspector.js";
 
+const { DatabaseSync } = loadNodeSqlite();
 let directory: string;
 let path: string;
-let writable: DatabaseSync;
+let writable: InstanceType<typeof DatabaseSync>;
 const requested = "2026-11-23T18:00:00.000Z";
 const completed = "2026-11-23T18:05:00.000Z";
 const now = new Date("2026-11-23T18:10:00Z");

@@ -1,7 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { inspectT3State } from "@t3-pilot/core";
+import {
+  createDefaultShieldPolicy, inspectT3State, loadShieldPolicy, renderGuardedTurboSkillMarkdown,
+  saveShieldPolicy, shieldPolicyPath,
+} from "@t3-pilot/core";
 import { execCommand, type AcpMcpCall, type CommandRunner } from "./t3-adapter.js";
 import type {
   PilotConfig,
@@ -95,6 +98,8 @@ export function initPilotWorkspace(options: PilotInitOptions): PilotInitResult {
   const sparklesPath = join(workspaceRoot, "SPARKLES.md");
   const mcpConfigPath = join(workspaceRoot, ".t3-pilot", "mcp.json");
   const sampleSkillPath = join(workspaceRoot, ".t3-pilot", "skills", "pilot-autopilot", "SKILL.md");
+  const shieldPath = join(workspaceRoot, shieldPolicyPath);
+  const shieldSkillPath = join(workspaceRoot, ".t3-pilot", "skills", "guarded-turbo", "SKILL.md");
 
   const defaultMcp = {
     mcpServers: {
@@ -122,6 +127,14 @@ export function initPilotWorkspace(options: PilotInitOptions): PilotInitResult {
   writeIfMissing(sparklesPath, DEFAULT_SPARKLES_MD);
   writeIfMissing(mcpConfigPath, `${JSON.stringify(defaultMcp, null, 2)}\n`);
   writeIfMissing(sampleSkillPath, DEFAULT_SAMPLE_SKILL_MD);
+  if (existsSync(shieldPath) && !options.force) {
+    preservedFiles.push(shieldPath);
+  } else {
+    saveShieldPolicy(workspaceRoot, createDefaultShieldPolicy());
+    createdFiles.push(shieldPath);
+  }
+  if (existsSync(shieldSkillPath) && !options.force) preservedFiles.push(shieldSkillPath);
+  else writeIfMissing(shieldSkillPath, renderGuardedTurboSkillMarkdown(loadShieldPolicy(workspaceRoot)));
 
   const pilotScript = buildPilotProjectScript({ port: cockpitPort });
   return {

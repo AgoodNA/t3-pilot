@@ -54,6 +54,40 @@ describe("evaluatePoolPacing", () => {
     });
   });
 
+  it("recovers session window to 100% and does NOT lock shield when sessionWindow.resetsAt is already in the past (now >= sessionReset)", () => {
+    const pool = {
+      ...baseline,
+      // Pre-reset cached state had 15% remaining, and resetsAt already passed
+      sessionWindow: session(15, date(0).toISOString()),
+      weeklyWindow: weekly(60, date(120 * hour).toISOString()),
+    };
+    // Inside critical (0, 2m] window before reset -> LOCKED_SHIELD (via 15% <= 20% or 90s <= 2m)
+    const beforeReset = {
+      ...baseline,
+      sessionWindow: session(75, date(90_000).toISOString()),
+      weeklyWindow: weekly(60, date(120 * hour).toISOString()),
+    };
+    expect(evaluatePoolPacing(beforeReset, date(0))).toMatchObject({
+      shieldLocked: true,
+      harvestMode: "LOCKED_SHIELD",
+      effectiveBurnablePercent: 0,
+    });
+
+    // At exact resetAt (now === sessionReset) and past resetAt (now > sessionReset): restored to 100%, unlocked!
+    for (const checkAt of [date(0), date(3 * hour)]) {
+      const evaluated = evaluatePoolPacing(pool, checkAt);
+      expect(evaluated).toMatchObject({
+        shieldLocked: false,
+        harvestMode: "PRESERVE_WINDOWS",
+        sessionRemainingPercent: 100,
+        sessionBurnableSurplusPercent: 80,
+        weeklyBurnableSurplusPercent: 40,
+        effectiveBurnablePercent: 40,
+        timeToSessionResetMs: null,
+      });
+    }
+  });
+
   it("requires strictly under 45 minutes for expiring-session harvest", () => {
     const pool = {
       ...baseline,

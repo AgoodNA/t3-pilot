@@ -40,12 +40,13 @@ async function call<Result>(name: string, args: Record<string, unknown> = {}): P
 }
 
 describe("Pilot MCP end-to-end", () => {
-  it("advertises all four tools and serves status, routing, and Sparkle additions through MCP", async () => {
+  it("advertises all five tools and serves status, routing, and Sparkle additions through MCP", async () => {
     const { tools } = await client.listTools();
-    expect(tools.map(({ name }) => name).sort()).toEqual(["pilot_route", "pilot_sparkle_add", "pilot_status", "pilot_sync"]);
+    expect(tools.map(({ name }) => name).sort()).toEqual(["pilot_route", "pilot_shield", "pilot_sparkle_add", "pilot_status", "pilot_sync"]);
     expect(await call<PilotStatusSummary>("pilot_status")).toMatchObject({ workspaceRoot: root,
       pools: [{ poolId: "codex", sessionWindow: { remainingPercent: 90 }, weeklyWindow: { remainingPercent: 80 } }],
       pacing: [{ harvestMode: "FULL_THROTTLE_HARVEST" }], humanPreemption: null, runtimeState: { version: 1, activeRun: null },
+      shield: { mode: "guarded-turbo" },
     });
     expect(await call("pilot_route", { task: "Debug TypeScript parser tests" })).toMatchObject({
       category: "SYSTEMS_PARSERS_TESTS_DEBUGGING",
@@ -60,6 +61,21 @@ describe("Pilot MCP end-to-end", () => {
     });
     const status = await call<PilotStatusSummary>("pilot_status");
     expect(status.sparkles).toContainEqual(expect.objectContaining({ title: "Study agent timing", mode: "scratch" }));
+  });
+
+  it("exposes shield status and evaluation without a policy mutation action", async () => {
+    const { tools } = await client.listTools();
+    expect(tools.find((tool) => tool.name === "pilot_shield")?.annotations?.readOnlyHint).toBe(true);
+    const policy = await call("pilot_shield", { action: "status" });
+    expect(policy).toMatchObject({ mode: "guarded-turbo", rules: expect.any(Array) });
+    expect(await call("pilot_shield", { action: "check", command: "npm publish" })).toMatchObject({
+      decision: "force_ask", matchedRuleId: "ask-package-publish",
+    });
+    expect(await call("pilot_shield", { action: "check", toolName: "Read", filePath: "~/.ssh/id_rsa" })).toMatchObject({
+      decision: "deny", matchedRuleId: "deny-host-credentials",
+    });
+    expect((await client.callTool({ name: "pilot_shield", arguments: { action: "mode", mode: "off" } })).isError).toBe(true);
+    expect(await call("pilot_shield", { action: "status" })).toEqual(policy);
   });
 
   it("previews by default, applies and records a snapshot, and rolls back through MCP", async () => {
