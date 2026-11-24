@@ -119,6 +119,22 @@ describe("evaluatePoolPacing", () => {
     expect(evaluatePoolPacing(pool, date(0), { reserveFloorPercent: 30 }).shieldLocked).toBe(true);
   });
 
+  it("treats a past weeklyWindow.resetsAt (now > weeklyReset) as a rolled-over fresh 100% cycle instead of false FULL_THROTTLE_HARVEST", () => {
+    const staleWeeklyPool = {
+      ...baseline,
+      sessionWindow: null,
+      weeklyWindow: weekly(65, date(-10 * minute).toISOString()),
+    };
+    expect(evaluatePoolPacing(staleWeeklyPool, date(0))).toMatchObject({
+      harvestMode: "PRESERVE_WINDOWS",
+      weeklyRemainingPercent: 100,
+      weeklyBurnableSurplusPercent: 80,
+      effectiveBurnablePercent: 80,
+      paceDeltaPercent: 0,
+      shieldLocked: false,
+    });
+  });
+
   it("evaluates multiple pools with the option to lock external quota", () => {
     const external = vectors.at(-1)!.pool;
     const [a, b] = evaluateAllPools([external, baseline], date(0), { lockUnknownPools: true });

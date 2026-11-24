@@ -213,8 +213,11 @@ function createShieldRuntime(defaults: ShieldPolicyConfig) {
     const globalPath = (arg: string) => {
       const unwrapped = arg.replace(/\/(?:\*|\{\.\*,\*\})$/, "/");
       const path = normalizePath(unwrapped, cwd);
-      return ["/", "~"].includes(path) || /^\/(?:root|home\/[^/]+)$/.test(path)
-        || /^\.\.(?:\/|$)/.test(arg) || /(?:^|\/)\.git(?:\/|$)/.test(path);
+      return ["/", "~"].includes(path)
+        || /^\/(?:root|(?:home|Users)\/[^/]+)$/.test(path)
+        || /^(?:~|\/(?:home|Users)\/[^/]+)\/(?:Desktop|Documents|Downloads|Library|Pictures|Movies|Music|Applications)(?:\/|$)/i.test(path)
+        || /^\.\.(?:\/|$)/.test(arg)
+        || /(?:^|\/)\.git(?:\/|$)/.test(path);
     };
     if (name === "rm") {
       return flags.some((arg) => arg === "--recursive" || /^-[^-]*[rR]/.test(arg))

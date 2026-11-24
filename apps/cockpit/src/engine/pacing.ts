@@ -51,15 +51,16 @@ export function evaluatePoolPacing(
   const rawWeeklyDeltaMs = weeklyReset === null ? null : weeklyReset - nowMs;
   const rawSessionDeltaMs = sessionReset === null ? null : sessionReset - nowMs;
   const sessionAlreadyReset = rawSessionDeltaMs !== null && rawSessionDeltaMs <= 0;
+  const weeklyAlreadyReset = rawWeeklyDeltaMs !== null && rawWeeklyDeltaMs < 0;
 
-  const weeklyRemaining = weekly?.remainingPercent ?? null;
+  const weeklyRemaining = weekly === null ? null : weeklyAlreadyReset ? 100 : weekly.remainingPercent;
   const sessionRemaining = session === null ? null : sessionAlreadyReset ? 100 : session.remainingPercent;
   const weeklySurplus = Math.max(0, (weeklyRemaining ?? 0) - floor);
   const sessionSurplus = session ? Math.max(0, (sessionRemaining ?? 0) - floor) : weeklySurplus;
 
-  const pristineWeeklyCycle = weekly?.resetsAt == null && weekly?.usedPercent === 0;
+  const pristineWeeklyCycle = (weekly?.resetsAt == null && weekly?.usedPercent === 0) || weeklyAlreadyReset;
   const durationMs = weekly ? weekly.windowDurationMins * MINUTE_MS : 0;
-  const timeToWeeklyResetMs = rawWeeklyDeltaMs === null
+  const timeToWeeklyResetMs = rawWeeklyDeltaMs === null || weeklyAlreadyReset
     ? (pristineWeeklyCycle ? durationMs : null)
     : Math.max(0, rawWeeklyDeltaMs);
   const timeToSessionResetMs = rawSessionDeltaMs === null || sessionAlreadyReset ? null : rawSessionDeltaMs;
