@@ -332,6 +332,73 @@ export function resolveBundledOverlayDir(explicitDir?: string): string {
   );
 }
 
+function sleepMs(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function getRunningMacAppPids(appBundlePath: string): number[] {
+  try {
+    const out = execFileSync("pgrep", ["-f", `${appBundlePath}/Contents/MacOS/`], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return out
+      .split(/\s+/)
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isInteger(n) && n > 0 && n !== process.pid);
+  } catch {
+    return [];
+  }
+}
+
+function quitMacAppAndWaitForExit(appBundlePath: string): void {
+  const initialPids = getRunningMacAppPids(appBundlePath);
+  if (initialPids.length === 0) return;
+
+  const appName = path.basename(appBundlePath, ".app");
+  try {
+    execFileSync("osascript", ["-e", `tell application "${appName}" to quit`], { stdio: "pipe" });
+  } catch {
+    for (const pid of initialPids) {
+      try {
+        process.kill(pid, "SIGTERM");
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
+  for (let i = 0; i < 40; i++) {
+    sleepMs(250);
+    const remaining = getRunningMacAppPids(appBundlePath);
+    if (remaining.length === 0) {
+      // Extra settle pause so ~/.t3/userdata lock file closes cleanly
+      sleepMs(350);
+      return;
+    }
+    if (i === 28) {
+      for (const pid of remaining) {
+        try {
+          process.kill(pid, "SIGTERM");
+        } catch {
+          // Ignore
+        }
+      }
+    }
+  }
+}
+
+function relaunchMacAppVerified(appBundlePath: string): void {
+  execFileSync("open", ["-a", appBundlePath], { stdio: "pipe" });
+  for (let attempt = 0; attempt < 6; attempt++) {
+    sleepMs(350);
+    if (getRunningMacAppPids(appBundlePath).length > 0) return;
+    if (attempt === 2) {
+      execFileSync("open", ["-n", "-a", appBundlePath], { stdio: "pipe" });
+    }
+  }
+}
+
 function updateDarwinInfoPlistAndCodesign(appBundlePath: string, newHeaderSha256: string) {
   const infoPlistPath = path.join(appBundlePath, "Contents/Info.plist");
   let xml = fs.readFileSync(infoPlistPath, "utf8");
@@ -394,11 +461,40 @@ function updateDarwinInfoPlistAndCodesign(appBundlePath: string, newHeaderSha256
         }
       }
     }
+    const unpackedDir = path.join(appBundlePath, "Contents/Resources/app.asar.unpacked");
+    if (fs.existsSync(unpackedDir)) {
+      const signNodeWalk = (dir: string) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) signNodeWalk(full);
+          else if (entry.name.endsWith(".node") || entry.name.endsWith(".dylib")) {
+            execFileSync("codesign", ["--force", "--sign", "-", full], { stdio: "pipe" });
+          }
+        }
+      };
+      signNodeWalk(unpackedDir);
+    }
+    const resMonDir = path.join(appBundlePath, "Contents/Resources/resource-monitor");
+    if (fs.existsSync(resMonDir)) {
+      const signExecWalk = (dir: string) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) signExecWalk(full);
+          else if (entry.isFile()) {
+            execFileSync("codesign", ["--force", "--sign", "-", full], { stdio: "pipe" });
+          }
+        }
+      };
+      signExecWalk(resMonDir);
+    }
     execFileSync(
       "codesign",
       ["--force", "--entitlements", entitlementsPath, "--sign", "-", appBundlePath],
       { stdio: "pipe" },
     );
+    execFileSync("codesign", ["--verify", "--deep", "--strict", appBundlePath], {
+      stdio: "pipe",
+    });
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -457,17 +553,12 @@ export function runNativeUiCommand(
           continue;
         }
         if (options.restart) {
-          const appName = path.basename(target.targetPath, ".app");
-          try {
-            execFileSync("osascript", ["-e", `tell application "${appName}" to quit`], { stdio: "pipe" });
-          } catch {
-            // Ignore if not running
-          }
+          quitMacAppAndWaitForExit(target.targetPath);
         }
         fs.rmSync(target.targetPath, { recursive: true, force: true });
         execFileSync("cp", ["-cR", effectiveBackup, target.targetPath]);
         if (options.restart) {
-          execFileSync("open", ["-a", target.targetPath]);
+          relaunchMacAppVerified(target.targetPath);
         }
         results.push({
           kind: target.kind,
@@ -499,13 +590,7 @@ export function runNativeUiCommand(
       fs.renameSync(tmpAsar, stagedAsar);
       updateDarwinInfoPlistAndCodesign(stagedApp, headerSha256);
 
-      let isRunning = false;
-      try {
-        execFileSync("pgrep", ["-f", `${target.targetPath}/Contents/MacOS/`], { stdio: "pipe" });
-        isRunning = true;
-      } catch {
-        isRunning = false;
-      }
+      const isRunning = getRunningMacAppPids(target.targetPath).length > 0;
 
       if (isRunning && !options.restart) {
         results.push({
@@ -520,19 +605,14 @@ export function runNativeUiCommand(
       }
 
       if (isRunning && options.restart) {
-        const appName = path.basename(target.targetPath, ".app");
-        try {
-          execFileSync("osascript", ["-e", `tell application "${appName}" to quit`], { stdio: "pipe" });
-        } catch {
-          // Ignore
-        }
+        quitMacAppAndWaitForExit(target.targetPath);
       }
 
       fs.rmSync(target.targetPath, { recursive: true, force: true });
       execFileSync("cp", ["-cR", stagedApp, target.targetPath]);
       execFileSync("xattr", ["-cr", target.targetPath]);
       if (options.restart) {
-        execFileSync("open", ["-a", target.targetPath]);
+        relaunchMacAppVerified(target.targetPath);
       }
       results.push({
         kind: target.kind,
