@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { formatHookDecisionOutput, parseHookStdinPayload, type SyncHarnessTarget } from "@t3-pilot/core";
+import { renderPilotInlineCardHtml } from "./chat-cards.js";
 import { runPilotMcpStdioServer } from "./mcp-server.js";
 import { PilotService } from "./service.js";
 import { startPilotStatusServer } from "./status-http.js";
@@ -32,6 +33,7 @@ const help = `Usage: t3-pilot <command> [options]
   shield check [--tool <name>] [--command <cmd>] [--path <file>] [--json]
   shield evaluate [--harness antigravity|claude-code|generic]
   sync [--diff | --apply | --rollback [snapshotId]] [--targets a,b] [--json]
+  card
   mcp
   --help, -h
   --version, -v
@@ -160,10 +162,16 @@ export async function runCli(argv: string[], io: PilotCliIO = {}): Promise<numbe
           break;
         }
         const governor = service.createGovernor({ dryRun: values["dry-run"], onError });
-        const cockpitDist = resolve(workspaceRoot, "apps/cockpit/dist");
+        const workspaceCockpit = resolve(workspaceRoot, "apps/cockpit/dist");
+        const bundledCockpit = fileURLToPath(new URL("../../../apps/cockpit/dist", import.meta.url));
+        const cockpitDist = existsSync(resolve(workspaceCockpit, "index.html"))
+          ? workspaceCockpit
+          : existsSync(resolve(bundledCockpit, "index.html"))
+            ? bundledCockpit
+            : undefined;
         const status = await startPilotStatusServer({
           port, host: values.host, allowRemote: values["allow-remote"], service,
-          staticDir: existsSync(resolve(cockpitDist, "index.html")) ? cockpitDist : undefined,
+          staticDir: cockpitDist,
         });
         const signal = shutdownSignal();
         try {
@@ -268,6 +276,12 @@ export async function runCli(argv: string[], io: PilotCliIO = {}): Promise<numbe
           rollbackSnapshotId: values.rollback ? positionals[0] ?? true : undefined,
         });
         print(values.json, result, describeSync(result));
+        break;
+      }
+      case "card": {
+        parseArgs({ args, options: {} });
+        const status = await service.getStatus();
+        stdout.write(`${renderPilotInlineCardHtml(status)}\n`);
         break;
       }
       case "mcp": {

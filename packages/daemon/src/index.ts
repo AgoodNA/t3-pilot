@@ -6,4 +6,5 @@ export * from "./service.js";
 export * from "./t3-installer.js";
 export * from "./status-http.js";
 export * from "./mcp-server.js";
+export * from "./chat-cards.js";
 export * from "./cli.js";

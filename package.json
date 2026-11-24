@@ -12,8 +12,8 @@
     "node": ">=22.5.0"
   },
   "scripts": {
-    "build": "npm run build --workspace @t3-pilot/core && npm run build --workspace t3-pilot",
-    "typecheck": "npm run typecheck --workspace @t3-pilot/core && npm run typecheck --workspace t3-pilot",
+    "build": "npm run build --workspace @t3-pilot/core && npm run build --workspace t3-pilot && npm run build --workspace @t3-pilot/cockpit",
+    "typecheck": "npm run typecheck --workspace @t3-pilot/core && npm run typecheck --workspace t3-pilot && npm run typecheck --workspace @t3-pilot/cockpit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
