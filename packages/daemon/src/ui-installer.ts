@@ -338,14 +338,20 @@ function sleepMs(ms: number): void {
 
 function getRunningMacAppPids(appBundlePath: string): number[] {
   try {
-    const out = execFileSync("pgrep", ["-f", `${appBundlePath}/Contents/MacOS/`], {
+    const needle = `${appBundlePath}/Contents/MacOS/`;
+    const out = execFileSync("ps", ["-ax", "-o", "pid=,command="], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     });
-    return out
-      .split(/\s+/)
-      .map((s) => Number(s.trim()))
-      .filter((n) => Number.isInteger(n) && n > 0 && n !== process.pid);
+    const pids: number[] = [];
+    for (const line of out.split("\n")) {
+      if (!line.includes(needle)) continue;
+      const pid = Number(line.trim().split(/\s+/)[0]);
+      if (Number.isInteger(pid) && pid > 0 && pid !== process.pid) {
+        pids.push(pid);
+      }
+    }
+    return pids;
   } catch {
     return [];
   }
