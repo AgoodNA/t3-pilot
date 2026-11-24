@@ -8,3 +8,5 @@ export * from "./status-http.js";
 export * from "./mcp-server.js";
 export * from "./chat-cards.js";
 export * from "./cli.js";
+
+export * from "./ui-installer.js";

@@ -1,6 +1,6 @@
 {
   "name": "@t3-pilot/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Core quota reader, coupled 7d x 5h pacing engine, resetAt epoch lock, human-first preemption, and cross-harness skills/MCP sync for T3 Code",
   "type": "module",
   "main": "./dist/index.js",

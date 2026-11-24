@@ -9,6 +9,7 @@ import { runPilotMcpStdioServer } from "./mcp-server.js";
 import { PilotService } from "./service.js";
 import { startPilotStatusServer } from "./status-http.js";
 import { initPilotWorkspace, installPilotProjectScript } from "./t3-installer.js";
+import { runNativeUiCommand } from "./ui-installer.js";
 import type { PilotSyncActionOutput, SparkleExecutionMode } from "./types.js";
 
 export interface PilotCliIO {
@@ -20,6 +21,7 @@ export interface PilotCliIO {
 
 const help = `Usage: t3-pilot <command> [options]
 
+  ui <install|restore|status> [--restart] [--app <path>] [--runtime-dir <path>] [--overlay-dir <path>] [--json]
   init [--port <n>] [--project-id <id>] [--base-branch <ref>] [--no-install-script] [--force] [--json]
   status [--json]
   route <task...> [--manual-override] [--json]
@@ -98,6 +100,36 @@ export async function runCli(argv: string[], io: PilotCliIO = {}): Promise<numbe
     if (command === "--version" || command === "-v") {
       const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
       stdout.write(`${version}\n`);
+      return 0;
+    }
+    if (command === "ui") {
+      const [sub = "status", ...uiArgs] = args;
+      if (sub !== "install" && sub !== "restore" && sub !== "status") {
+        throw new Error("Expected ui install, ui restore, or ui status.");
+      }
+      const { values } = parseArgs({
+        args: uiArgs,
+        options: {
+          ...jsonOptions,
+          restart: boolean,
+          app: string,
+          "runtime-dir": string,
+          "overlay-dir": string,
+        },
+      });
+      const out = runNativeUiCommand(sub, {
+        restart: values.restart,
+        appPath: values.app,
+        runtimeDir: values["runtime-dir"],
+        overlayDir: values["overlay-dir"],
+      });
+      const lines =
+        out.targets.length === 0
+          ? ["No T3 Code installation detected. Pass --app <path> or --runtime-dir <path>."]
+          : out.targets.map(
+              (t) => `[${t.kind}] ${t.path} -> ${t.status}${t.stagedAppPath ? ` (staged: ${t.stagedAppPath})` : ""}`,
+            );
+      print(values.json, out, lines.join("\n"));
       return 0;
     }
     if (command === "init") {

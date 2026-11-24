@@ -24,7 +24,7 @@ flowchart LR
 ```
 
 ### Pillar 1: Visual Pilot Cockpit (Inside T3 Preview + Chat Cards)
-- Registers a top-bar **`Pilot`** project button in T3 Code (`scripts` integration) opening a live split-pane dashboard (works identically on macOS, Windows, remote `remote-linux` Linux, and T3 Mobile).
+- Registers a top-bar **`Pilot`** project button in T3 Code (`scripts` integration) opening a live split-pane dashboard (works identically on macOS, Windows, remote SSH Linux, and T3 Mobile).
 - Also renders inline interactive quota & routing cards via T3's `html_render` MCP tool.
 - Displays unified **5-hour window %**, **7-day weekly %**, **Reset countdown (`resetAt`)**, **Live Pace Curve**, **Sparkle Queue Manager**, and **Guarded Turbo Safety Shield switches** across `Codex`, `Antigravity (Gemini)`, and `Antigravity (Claude)` (with plug-and-play adapter stubs for native `claudeAgent` / `cursor` on community request).
 
@@ -56,7 +56,7 @@ flowchart LR
 
 ---
 
-## 2. Monorepo Layout (`t3-pilot` on `remote-linux`)
+## 2. Monorepo Layout (`t3-pilot/`)
 
 - `packages/core`: Quota window reader (T3 caches + multi-root Codex session telemetry), Coupled `7d × 5h` math engine, Task-to-Model scorer, Human-activity detector, Guarded Turbo policy engine, and Skills/MCP/Hooks transpiler (100% unit-tested).
 - `packages/daemon`: Background governor + MCP server (`pilot_status`, `pilot_route`, `pilot_sparkle_add`, `pilot_sync`, `pilot_shield`) + CLI (`npx t3-pilot init | status | route | up | sparkle | shield | sync | mcp`).
@@ -64,7 +64,7 @@ flowchart LR
 
 ---
 
-## 3. Multi-Model Build Plan on `remote-linux` (Enforcing 20% Weekly Floor)
+## 3. Multi-Model Build Plan (Enforcing 20% Weekly Floor)
 
 | Milestone | Scope | Primary Model Assignment |
 |---|---|---|

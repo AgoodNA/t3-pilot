@@ -50,3 +50,10 @@ const readme = join(daemonDir, "../../README.md");
 const packageReadme = join(daemonDir, "README.md");
 if (existsSync(readme)) cpSync(readme, packageReadme);
 else writeFileSync(packageReadme, "# t3-pilot\n\nRun `npx t3-pilot --help` to see available commands.\n");
+
+const overlaySrc = join(daemonDir, "../../native-ui-overlay");
+const overlayDest = join(daemonDir, "native-ui-overlay");
+if (existsSync(join(overlaySrc, "pilot-overlay-manifest.json"))) {
+  rmSync(overlayDest, { recursive: true, force: true });
+  cpSync(overlaySrc, overlayDest, { recursive: true });
+}

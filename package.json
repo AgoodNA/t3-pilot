@@ -1,6 +1,6 @@
 {
   "name": "t3-pilot-monorepo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Turn expiring AI quota into morning surprises — without touching 1% of your fresh cycle.",
   "type": "module",

@@ -12,7 +12,7 @@
 
 [![CI](https://github.com/AgoodNA/t3-pilot/actions/workflows/ci.yml/badge.svg)](https://github.com/AgoodNA/t3-pilot/actions/workflows/ci.yml)
 [![在线演示](https://img.shields.io/badge/Cockpit-在线演示-22d3ee?logo=githubpages&logoColor=white)](https://agoodna.github.io/t3-pilot/?demo=1)
-[![Vitest](https://img.shields.io/badge/Vitest-212_passing-6E9F18?logo=vitest&logoColor=white)](./vitest.config.ts)
+[![Vitest](https://img.shields.io/badge/Vitest-215_passing-6E9F18?logo=vitest&logoColor=white)](./vitest.config.ts)
 [![Node](https://img.shields.io/badge/node-%3E%3D22.5-339933?logo=node.js&logoColor=white)](./package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
@@ -35,11 +35,33 @@
 `t3-pilot` 一次性解决这三件事。它以**只读方式**读取 T3 Code 自己的额度遥测数据，精确算出每个额度池在过期前还能花多少，只把这部分拿去跑你提前排好的任务，并且在新周期开始前停下。
 
 > [!NOTE]
-> `t3-pilot` 不改 T3 Code 一行代码。`statev2.sqlite` 只用 `?mode=ro` 打开，线程和项目的任何改动**只**通过官方 `t3` CLI 和 T3 MCP 工具完成。
+> 在独立 CLI 模式下，`t3-pilot` 完全只读（`?mode=ro`）；若使用 `t3-pilot ui install` 开启原生顶栏与右侧栏组件，工具会先完整备份原版包，随时可通过 `ui restore` 秒级无损还原。`statev2.sqlite` 只用 `?mode=ro` 打开，线程和项目的任何改动**只**通过官方 `t3` CLI 和 T3 MCP 工具完成。
 
 ---
 
-## ⚡ 10 秒上手
+## ✨ v0.2 重磅新增：T3 Code 原生顶栏按钮 + 右侧栏交互面板
+
+不想开外部浏览器分屏？一行命令即可把 **右上角顶栏实时额度胶囊** 与 **右侧详情栏三合一图形化驾驶舱** 原生装进你的 T3 Code 桌面端与远程 Web 端：
+
+```bash
+# 跨平台一行安装（自动识别 macOS / Windows / Linux / 远程 t3 serve，自动备份原版）
+npx https://github.com/AgoodNA/t3-pilot/releases/download/v0.2.0/t3-pilot-0.2.0.tgz ui install --restart
+
+# 查看安装状态 / 1 秒无损还原官方原版
+npx https://github.com/AgoodNA/t3-pilot/releases/download/v0.2.0/t3-pilot-0.2.0.tgz ui status
+npx https://github.com/AgoodNA/t3-pilot/releases/download/v0.2.0/t3-pilot-0.2.0.tgz ui restore --restart
+```
+
+- **四大纯图形化交互模块（适配所有模型生态）**：
+  1. **配额快切与提示词智能选模**：自适应任意已登录服务商（`Codex`、`Antigravity`、`Claude`、`Cursor`、`OpenCode` 等），支持 `15%/20%/25%/30%` 保底红线切换、单池 **省流保护开关**、自定义固定快切按钮，以及按输入框任务意图 + 富余额度一键/自动匹配模型。
+  2. **5h 临期余量收割队列**：图形化添加低优任务（支持独立 Git Worktree 分支），可点 `▶ 立即派发` 拉起原生后台会话并一键跳转，或开启空闲临期自动收割（内置 `resetAt - 3m` 零新额度硬锁）。
+  3. **上下文一键压缩与充裕池分流**：在上下文条旁直接点 **一键压缩 (`/compact`)** 或 **充裕池新开分流**。
+  4. **跨设备远程连接 & 多生态对齐**：自动对比本地与所有远程连接设备的模型凭据与技能差异，一键无损软链对齐工作区 `AGENTS.md`、`CLAUDE.md` 与 `.agents/.claude` 技能目录。
+- **完整定制版 T3 Code 开源分支**：[`AgoodNA/t3code@feat/pilot-native-cockpit`](https://github.com/AgoodNA/t3code/tree/feat/pilot-native-cockpit)
+
+---
+
+## ⚡ 10 秒上手（独立守护进程 / CLI 模式）
 
 ```bash
 npx t3-pilot init   # 生成 .t3-pilot/、SPARKLES.md、Guarded Turbo 策略，并注册 Pilot 按钮

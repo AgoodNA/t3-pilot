@@ -12,7 +12,7 @@ An autopilot for [**T3 Code**](https://github.com/pingdotgg/t3code). It routes e
 
 [![CI](https://github.com/AgoodNA/t3-pilot/actions/workflows/ci.yml/badge.svg)](https://github.com/AgoodNA/t3-pilot/actions/workflows/ci.yml)
 [![Live Demo](https://img.shields.io/badge/Cockpit-Live_Demo-22d3ee?logo=githubpages&logoColor=white)](https://agoodna.github.io/t3-pilot/?demo=1)
-[![Vitest](https://img.shields.io/badge/Vitest-212_passing-6E9F18?logo=vitest&logoColor=white)](./vitest.config.ts)
+[![Vitest](https://img.shields.io/badge/Vitest-215_passing-6E9F18?logo=vitest&logoColor=white)](./vitest.config.ts)
 [![Node](https://img.shields.io/badge/node-%3E%3D22.5-339933?logo=node.js&logoColor=white)](./package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
@@ -35,11 +35,33 @@ If you code with several AI subscriptions in T3 Code (Claude, ChatGPT/Codex, Ant
 `t3-pilot` fixes all three. It reads T3 Code's own quota telemetry **read-only**, works out exactly how much of each pool can be spent before it expires, spends only that on work you queued, and stops before your fresh cycle begins.
 
 > [!NOTE]
-> `t3-pilot` never patches T3 Code. It reads `statev2.sqlite` with `?mode=ro` and changes threads/projects **only** through the official `t3` CLI and T3 MCP tools.
+> In standalone daemon/CLI mode, `t3-pilot` never modifies T3 Code binaries (`?mode=ro` SQLite); if you also want embedded native titlebar & sidebar controls, `t3-pilot ui install` backs up your app bundle first and supports 1-command lossless `ui restore`. It reads `statev2.sqlite` with `?mode=ro` and changes threads/projects **only** through the official `t3` CLI and T3 MCP tools.
 
 ---
 
-## ⚡ 10-Second Quickstart
+## ✨ New in v0.2: Native First-Party T3 Code UI (Topbar + Right Sidebar)
+
+Want **zero external tabs**—with an interactive quota pill in T3 Code's top-right titlebar and a 3-tab graphical cockpit natively inside T3 Code's right-hand details sidebar?
+
+```bash
+# One-command cross-platform install (macOS Apple Silicon/Intel · Windows · Linux · Remote t3 serve)
+npx https://github.com/AgoodNA/t3-pilot/releases/download/v0.2.0/t3-pilot-0.2.0.tgz ui install --restart
+
+# Check status or restore untouched official T3 Code in 1 second
+npx https://github.com/AgoodNA/t3-pilot/releases/download/v0.2.0/t3-pilot-0.2.0.tgz ui status
+npx https://github.com/AgoodNA/t3-pilot/releases/download/v0.2.0/t3-pilot-0.2.0.tgz ui restore --restart
+```
+
+- **4 Interactive Graphical Surfaces**:
+  1. **Quota & Prompt Auto-Router**: Live `5h`/`7d` bars across any connected provider (`Codex`, `Antigravity`, `Claude`, `Cursor`, `OpenCode`, `OpenRouter`), customizable `15%/20%/25%/30%` reserve floor, per-pool **Protected Mode**, custom model pinning, and 1-click/auto prompt-intent routing.
+  2. **Expiring-Quota Harvest Queue**: Queue low-priority tasks graphically; launch them immediately into isolated Git worktrees or let the coupled `7d × 5h` engine auto-dispatch during idle expiring windows (with a strict `resetAt - 3m` Zero-Fresh-Quota Epoch Lock).
+  3. **1-Click Context Compaction & Surplus Fork**: Trigger `/compact` or spin up a fresh same-project thread pre-seeded on your healthiest quota pool in one click.
+  4. **Multi-Device & Multi-Ecosystem Alignment**: Compare authenticated providers & skills across all local and remote SSH environments, and non-destructively align `AGENTS.md`, `CLAUDE.md`, `.agents/skills`, and `.claude/skills`.
+- **Full Open-Source Client Branch**: [`AgoodNA/t3code@feat/pilot-native-cockpit`](https://github.com/AgoodNA/t3code/tree/feat/pilot-native-cockpit)
+
+---
+
+## ⚡ 10-Second Quickstart (Standalone Daemon / CLI Mode)
 
 ```bash
 npx t3-pilot init   # scaffold .t3-pilot/, SPARKLES.md, Guarded Turbo policy + register the Pilot button

@@ -17,10 +17,11 @@ it("packs a standalone CLI and serves its Cockpit outside the monorepo", { timeo
     execFileSync("npm", ["pack", "--silent", "--offline", "--pack-destination", packDir], {
       cwd: daemonDir, stdio: "pipe", timeout: 20_000,
     });
-    const tarball = join(packDir, "t3-pilot-0.1.0.tgz");
+    const tarball = join(packDir, "t3-pilot-0.2.0.tgz");
     const entries = execFileSync("tar", ["-tzf", tarball], { encoding: "utf8" }).trim().split("\n");
     expect(entries).toEqual(expect.arrayContaining([
       "package/dist/cli.js",
+      "package/native-ui-overlay/pilot-overlay-manifest.json",
       "package/dist/index.js",
       "package/dist/_core/index.d.ts",
       "package/cockpit-dist/index.html",

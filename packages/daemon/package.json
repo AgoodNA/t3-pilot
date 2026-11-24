@@ -1,6 +1,6 @@
 {
   "name": "t3-pilot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Turn expiring AI quota into morning surprises — 7d x 5h coupled Sparkle harvester, Guarded Turbo safety shield, 20% emergency reserve router, and Visual Cockpit for T3 Code",
   "license": "MIT",
   "type": "module",
@@ -11,7 +11,8 @@
     "dist",
     "cockpit-dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "native-ui-overlay"
   ],
   "bin": {
     "t3-pilot": "./dist/cli.js"

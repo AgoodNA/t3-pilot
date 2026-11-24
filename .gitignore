@@ -12,3 +12,7 @@ coverage/
 .t3-pilot/scratch/
 .env
 .env.*
+
+native-ui-overlay/
+*.tgz
+packages/daemon/native-ui-overlay/

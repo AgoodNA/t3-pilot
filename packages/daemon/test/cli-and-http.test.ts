@@ -44,7 +44,7 @@ async function json(...args: string[]) {
 describe("t3-pilot CLI", () => {
   it("reports help and version and rejects invalid flags and inputs", async () => {
     expect(await invoke("-h")).toMatchObject({ code: 0, stdout: expect.stringContaining("Usage: t3-pilot"), stderr: "" });
-    expect(await invoke("--version")).toMatchObject({ code: 0, stdout: "0.1.0\n", stderr: "" });
+    expect(await invoke("--version")).toMatchObject({ code: 0, stdout: "0.2.0\n", stderr: "" });
     expect(await invoke("init", "--port", "70000")).toMatchObject({ code: 1, stderr: expect.stringContaining("65535") });
     expect(await invoke("route", "--json")).toMatchObject({ code: 1, stderr: expect.stringContaining("Task is required") });
     expect(await invoke("sparkle", "add", "One", "--mode", "unknown")).toMatchObject({ code: 1, stderr: expect.stringContaining("Sparkle mode") });
